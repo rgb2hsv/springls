@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=6f0d582d">
+<link rel="stylesheet" href="style.css?v=35702364">
 </head>
 <body>
 
@@ -112,7 +112,7 @@
 
 <!-- ============================================================ 1 -->
 <section>
-<h2 id="introduction"><span class="num">1</span>Introduction<a class="anchor" href="#introduction">#</a></h2>
+<h2 id="introduction"><span class="num">1</span>Introduction<a class="anchor" href="#introduction" aria-label="Link to this section"></a></h2>
 
 <p>Deformable models — active contours in image segmentation, free surfaces in fluid simulation,
 tracked organs in medical imaging — must follow an interface through deformations that are often
@@ -194,9 +194,9 @@ springls, not by the grid.</p>
 
 <!-- ============================================================ 2 -->
 <section>
-<h2 id="background"><span class="num">2</span>Background<a class="anchor" href="#background">#</a></h2>
+<h2 id="background"><span class="num">2</span>Background<a class="anchor" href="#background" aria-label="Link to this section"></a></h2>
 
-<h3 id="bg-levelsets"><span class="num">2.1</span>Level sets and narrow bands<a class="anchor" href="#bg-levelsets">#</a></h3>
+<h3 id="bg-levelsets"><span class="num">2.1</span>Level sets and narrow bands<a class="anchor" href="#bg-levelsets" aria-label="Link to this section"></a></h3>
 
 <p>A level set represents an interface as the zero crossing of a function φ, here a signed distance
 (negative inside). Moving the interface with a velocity field <b>u</b> means solving
@@ -210,25 +210,25 @@ blocks in a shallow tree. Pure level sets lose mass wherever the interface thins
 the particle level set method <sup class="ref"><a href="#ref-2">[2]</a></sup> counteracts with marker
 particles that correct φ, and which the Enright test was designed to expose.</p>
 
-<h3 id="bg-springls"><span class="num">2.2</span>Spring level sets<a class="anchor" href="#bg-springls">#</a></h3>
+<h3 id="bg-springls"><span class="num">2.2</span>Spring level sets<a class="anchor" href="#bg-springls" aria-label="Link to this section"></a></h3>
 
 <figure id="fig-anatomy">
   <img src="springls-anatomy.svg" width="980" height="830" alt="Anatomy of a springl (particle, vertexes, arms, normal, capsule) and a comparison of spring level sets and doubleweave on a level-set grid with its iso-contour" loading="lazy">
   <figcaption><span class="fig">Figure 1.</span> Anatomy of a 2D springl, and spring level sets vs.
   doubleweave on a level-set grid with its iso-contour. Colors match the <code>enright2d</code>
-  panels. Regenerate with <code>python3 docs/make_anatomy_diagram.py</code>.</figcaption>
+  panels.</figcaption>
 </figure>
 
 <p><strong>Spring level sets</strong> <sup class="ref"><a href="#ref-1">[1]</a></sup> represent the
 interface with one <em>constellation</em> of springls: short, disconnected line segments (a particle
 with two arm vertexes) that are advected by the flow. The springls alone are not connected to each
 other, so they leave small gaps. A level set evolved toward the springls supplies the topology, and
-its iso-contour is the watertight representation of the surface. Each step the springls are
+its iso-contour is the watertight representation of the surface. Each step, the springls are
 resampled against that contour: springls far from it are removed, and gaps along it are filled with
 new springls. Springls are held together by springs: each arm is pulled toward its rest length, and
 each arm vertex is attracted to the nearest vertex of a neighboring springl.</p>
 
-<h3 id="bg-related"><span class="num">2.3</span>Related work<a class="anchor" href="#bg-related">#</a></h3>
+<h3 id="bg-related"><span class="num">2.3</span>Related work<a class="anchor" href="#bg-related" aria-label="Link to this section"></a></h3>
 
 <p>Explicit surface trackers with level-set-driven topology changes
 <sup class="ref"><a href="#ref-18">[18]</a></sup> keep a connected mesh and resolve collisions
@@ -244,7 +244,7 @@ dual contouring <sup class="ref"><a href="#ref-7">[7]</a></sup>.</p>
 
 <!-- ============================================================ 3 -->
 <section>
-<h2 id="method"><span class="num">3</span>Method<a class="anchor" href="#method">#</a></h2>
+<h2 id="method"><span class="num">3</span>Method<a class="anchor" href="#method" aria-label="Link to this section"></a></h2>
 
 <p>This section walks through one time step of every method, in the order the code runs it. All
 methods share the same skeleton (<code>SpringLevelSet2D::step()</code>); doubleweave, adaptive and
@@ -253,12 +253,12 @@ is the local cell size (1 on uniform grids, 2<sup>−depth</sup> on adaptive one
 simplified from the source in <code>src/springls</code>; names in <code>monospace</code> refer to
 functions or tuning keys there.</p>
 
-<h3 id="m-notation"><span class="num">3.1</span>State and notation<a class="anchor" href="#m-notation">#</a></h3>
+<h3 id="m-notation"><span class="num">3.1</span>State and notation<a class="anchor" href="#m-notation" aria-label="Link to this section"></a></h3>
 
 <p>A <strong>springl</strong> <em>s</em> is a particle <b>p</b><sub>s</sub> with two arm vertexes
 <b>v</b><sub>s,0</sub>, <b>v</b><sub>s,1</sub> (in 3D, a planar polygon of 3–16 vertexes around its
 particle), an outward normal <b>n</b><sub>s</sub>, a size class (scale) σ<sub>s</sub>, a velocity, and
-for tracking a correspondence point on the initial interface. Alongside the springls the simulation
+for tracking, a correspondence point on the initial interface. Alongside the springls, the simulation
 keeps:</p>
 
 <ul>
@@ -268,10 +268,10 @@ keeps:</p>
   <li>U — the unsigned distance to the springls, |<b>x</b> − closest springl|, clamped to
   <code>unsignedMaxDistance</code> and computed with a segment (triangle) BVH <sup class="ref"><a href="#ref-11">[11]</a></sup>;</li>
   <li>C — the iso-contour (iso-surface) of φ: the watertight representation of the interface,
-  and the reference springls are resampled against.</li>
+  and the reference that springls are resampled against.</li>
 </ul>
 
-<h3 id="m-step"><span class="num">3.2</span>The time step<a class="anchor" href="#m-step">#</a></h3>
+<h3 id="m-step"><span class="num">3.2</span>The time step<a class="anchor" href="#m-step" aria-label="Link to this section"></a></h3>
 
 <p>One <code>step()</code> is <code>advectionSubstepsPerStep</code> (3) advection sub-steps; each
 sub-step advects the springls, moves the level set to them, and resamples the springls against the
@@ -295,7 +295,7 @@ new contour.</p>
     <span class="f">UpdateTracking</span>()                          <span class="c">// new springls inherit correspondences</span>
   <span class="k">if</span> adaptive <span class="k">then</span> <span class="f">MergeCompressedSpringls</span>()</code></pre>
 
-<h3 id="m-advect"><span class="num">3.3</span>Advection<a class="anchor" href="#m-advect">#</a></h3>
+<h3 id="m-advect"><span class="num">3.3</span>Advection<a class="anchor" href="#m-advect" aria-label="Link to this section"></a></h3>
 
 <p>Particles and every arm vertex are moved independently by classic fourth-order Runge–Kutta,
 with the velocity field (or the analytic Enright velocity) evaluated at each stage time so
@@ -329,7 +329,7 @@ normal turns with the flow.</p>
     v<sub>s,e</sub> ← p<sub>s</sub> + z · (v<sub>s,e</sub><sup>old</sup> − p<sub>s</sub><sup>old</sup>)
   <span class="k">return</span> Δt</code></pre>
 
-<h3 id="m-relax"><span class="num">3.4</span>Relaxation<a class="anchor" href="#m-relax">#</a></h3>
+<h3 id="m-relax"><span class="num">3.4</span>Relaxation<a class="anchor" href="#m-relax" aria-label="Link to this section"></a></h3>
 
 <p>Relaxation keeps neighboring springls joined end-to-end and their arms near rest length. Each
 arm vertex has at most one <em>nearest neighbor</em>: the closest arm vertex of another springl within
@@ -362,7 +362,7 @@ arm vertex has at most one <em>nearest neighbor</em>: the closest arm vertex of 
     r ← clamp(L<sub>e</sub> + m<sub>e</sub>·t<sub>e</sub> + f<sub>e</sub>, ε, maxArmLength·σ)
     v<sub>s,e</sub> ← p<sub>s</sub> + Rotate<sub>θ</sub>(r · t<sub>e</sub>)</code></pre>
 
-<h3 id="m-levelset"><span class="num">3.5</span>Level-set evolution<a class="anchor" href="#m-levelset">#</a></h3>
+<h3 id="m-levelset"><span class="num">3.5</span>Level-set evolution<a class="anchor" href="#m-levelset" aria-label="Link to this section"></a></h3>
 
 <p>The CFL-limited methods do not reconstruct φ; they <em>evolve</em> it toward the springls, which
 keeps it smooth and its topology stable. First U is recomputed from the springl segments. Then φ is
@@ -388,7 +388,7 @@ This is repeated <code>signedEvolveIterations</code> (16) times per sub-step.</p
   C ← <span class="f">MarchingSquares</span>(φ)                       <span class="c">// surface nets in 3D</span>
   <span class="f">RefineContour</span>(C)</code></pre>
 
-<h3 id="m-contour"><span class="num">3.6</span>Contour extraction and refinement<a class="anchor" href="#m-contour">#</a></h3>
+<h3 id="m-contour"><span class="num">3.6</span>Contour extraction and refinement<a class="anchor" href="#m-contour" aria-label="Link to this section"></a></h3>
 
 <p>The contour is extracted with marching squares with saddle disambiguation <sup class="ref"><a href="#ref-5">[5]</a></sup> (in 3D, surface
 nets <sup class="ref"><a href="#ref-6">[6]</a></sup>). Because φ is only first-order accurate, the contour is then
@@ -411,7 +411,7 @@ along its normal.</p>
       δ ← δ + w · (l − (l·n)n) + (1 − w) · (l·n)n          <span class="c">// smooth</span>
     apply all δ</code></pre>
 
-<h3 id="m-resample"><span class="num">3.7</span>Resampling: contract and fill<a class="anchor" href="#m-resample">#</a></h3>
+<h3 id="m-resample"><span class="num">3.7</span>Resampling: contract and fill<a class="anchor" href="#m-resample" aria-label="Link to this section"></a></h3>
 
 <p>Advection compresses springls in some places and stretches them apart in others, and topology
 changes leave springls with no surface under them. Resampling against the contour fixes both.</p>
@@ -435,7 +435,7 @@ changes leave springls with no surface under them. Resampling against the contou
       AppendSpringl(particle = m, vertexes = a, b);  n ← n + 1
   <span class="k">return</span> n</code></pre>
 
-<h3 id="m-tracking"><span class="num">3.8</span>Tracking<a class="anchor" href="#m-tracking">#</a></h3>
+<h3 id="m-tracking"><span class="num">3.8</span>Tracking<a class="anchor" href="#m-tracking" aria-label="Link to this section"></a></h3>
 
 <p>Every springl carries a <em>correspondence</em>: the point on the initial interface it came from,
 so texture or labels can ride along the surface. A springl created by fill has none; it inherits one
@@ -443,7 +443,7 @@ from the old (pre-resampling) springls whose arm vertexes were near its own and 
 way. If both of its ends find a source, it takes their midpoint, traced back onto the initial
 interface by gradient descent on |φ<sub>0</sub>|; otherwise it copies the single source.</p>
 
-<h3 id="m-doubleweave"><span class="num">3.9</span>Doubleweave<a class="anchor" href="#m-doubleweave">#</a></h3>
+<h3 id="m-doubleweave"><span class="num">3.9</span>Doubleweave<a class="anchor" href="#m-doubleweave" aria-label="Link to this section"></a></h3>
 
 <p>Doubleweave uses two constellations instead of one (<a href="#fig-anatomy">Figure 1</a>, right): a
 <em>primal</em> constellation centered on the contour's edge midpoints (as in spring level sets) and a
@@ -474,7 +474,7 @@ missing springl of the other, so dual gaps are filled from primal joints and vic
   <span class="k">for each</span> edge (a, b) of C<sub>primal</sub> with a primal gap at its midpoint <span class="k">do</span> add primal springl
   <span class="k">for each</span> vertex v of C<sub>dual</sub> with a dual gap at v <span class="k">do</span> add dual chord springl</code></pre>
 
-<h3 id="m-adaptive"><span class="num">3.10</span>Adaptive grids<a class="anchor" href="#m-adaptive">#</a></h3>
+<h3 id="m-adaptive"><span class="num">3.10</span>Adaptive grids<a class="anchor" href="#m-adaptive" aria-label="Link to this section"></a></h3>
 
 <p>The adaptive methods replace the uniform narrow band with a block-adaptive quadtree (octree in 3D)
 of 8×8 (8³) cell blocks, 2:1 balanced, in the spirit of OpenVDB <sup class="ref"><a href="#ref-8">[8]</a></sup>, and evolve it
@@ -484,7 +484,7 @@ extra stages around the same evolve / resample loop:</p>
 <ol class="steps">
   <li><strong>Fit the band.</strong> Every leaf within <code>bandCells</code> finest cells plus one sub-step of
   motion of any particle is refined to <code>maxDepth</code>; parents with no particle nearby coarsen by one
-  level. The zero level set thus always lies in finest leaves, with no refinement thresholds.</li>
+  level. The zero level set thus always lies in the finest leaves, with no refinement thresholds.</li>
   <li><strong>Split.</strong> A springl larger than 1.5 × its leaf's cell size is split in half
   (repeatedly) so springl size matches resolution.</li>
   <li><strong>Evolve + correct.</strong> Sparse-field evolution as above, on every active leaf, with
@@ -511,7 +511,7 @@ extra stages around the same evolve / resample loop:</p>
     <span class="k">if</span> sign(n<sub>s</sub> · (x − closest)) ≠ sign φ(x) <span class="k">then</span> φ(x) ← signed dist to s
   extract contour on the quadtree (minimal edges, watertight across levels)</code></pre>
 
-<h3 id="m-sl"><span class="num">3.11</span>Semi-Lagrangian doubleweave<a class="anchor" href="#m-sl">#</a></h3>
+<h3 id="m-sl"><span class="num">3.11</span>Semi-Lagrangian doubleweave<a class="anchor" href="#m-sl" aria-label="Link to this section"></a></h3>
 
 <p>The adaptive methods' level set chases the springls with an explicit upwind PDE, which moves at
 most half a cell per update, so every advection sub-step is capped at <code>maxStepPixels</code>: a
@@ -572,7 +572,7 @@ and outside come from topology, not from springl normals (<code>SpringlSignField
   from the border, the unreached interiors of both blobs, and the walls signed upwind, so outside and
   inside meet on the springls. (4) φ on the adaptive grid; fill seeds new primal springls along the
   contour across the gap in the same sub-step. Computed by a small Python re-implementation of the
-  rule; regenerate with <code>python3 docs/make_semi_lagrangian_diagram.py</code>.</figcaption>
+  rule.</figcaption>
 </figure>
 
 <figure id="fig-thin">
@@ -582,9 +582,9 @@ and outside come from topology, not from springl normals (<code>SpringlSignField
   faces' walls merge, so nothing is left unreached; the middle of the sheet is a local maximum of U
   with no larger-U neighbor, and the fallback makes it inside, so the sheet keeps its interior. (c)
   The price: an outside gap thinner than two capsules has the same local maximum, so two bodies that
-  close fuse (a union, the intended behavior for colliding fronts). On the 2D Enright test
+  come that close fuse (a union, the intended behavior for colliding fronts). On the 2D Enright test
   (64², T = 8, depth 4) this rule gives −0.23% area error, against −1.37% when those samples read
-  the previous field's sign instead. Regenerate with <code>python3 docs/make_thin_feature_diagram.py</code>.</figcaption>
+  the previous field's sign instead.</figcaption>
 </figure>
 
 <p id="m-sl-dt"><strong>Strain-limited time step.</strong> Without the PDE the only accuracy limit is how much one
@@ -598,7 +598,7 @@ neighbors, including the nearest springl of the other constellation) stretches b
 <p>Opposite-facing pairs (colliding fronts, or two sides of a filament) are ignored: their relative
 speed says nothing about how the surface stretches.</p>
 
-<h3 id="m-3d"><span class="num">3.12</span>Extension to 3D<a class="anchor" href="#m-3d">#</a></h3>
+<h3 id="m-3d"><span class="num">3.12</span>Extension to 3D<a class="anchor" href="#m-3d" aria-label="Link to this section"></a></h3>
 
 <p><code>SpringLevelSet3D</code> and <code>DoubleweaveLevelSet3D</code> follow the 2D classes step for step (same
 extension points, tuning struct, advection schedule and <code>init()</code> / <code>step()</code> loop). The 3D-specific
@@ -607,8 +607,7 @@ choice is the springl <strong>element type</strong>: quads (default) or triangle
 <figure id="fig-anatomy3d">
   <img src="springls-anatomy-3d.svg" width="980" height="920" alt="Anatomy of a 3D springl (particle, arms, vertexes, normal, capsule, neighbor attraction) and the primal, dual and doubleweave springls on an iso-surface patch" loading="lazy">
   <figcaption><span class="fig">Figure 4.</span> Anatomy of a 3D springl, and primal, dual and
-  doubleweave springls on an iso-surface patch. Colors match the <code>enright3d</code> panels.
-  Regenerate with <code>python3 docs/make_anatomy_diagram_3d.py</code>.</figcaption>
+  doubleweave springls on an iso-surface patch. Colors match the <code>enright3d</code> panels.</figcaption>
 </figure>
 
 <ul>
@@ -616,7 +615,7 @@ choice is the springl <strong>element type</strong>: quads (default) or triangle
   crosses, one quad per crossed grid edge) and each springl is a quad with its particle at the face
   centroid. Doubleweave's dual springls are the faces of the <em>dual mesh</em>: each is centered on an
   iso-surface vertex, where the corners of the primal springls meet, and its corners are the
-  centroids of the faces around that vertex, reaching toward the primal particles. Springls have variable valence (3 to 16
+  centroids of the faces around that vertex, reaching toward the primal particles. Dual springls have variable valence (3 to 16
   vertexes), so a vertex shared by <em>n</em> faces gives one dual <em>n</em>-gon with its particle on the
   vertex: a quad at the usual valence 4, a pentagon or triangle where the surface net has an
   irregular vertex. Because a dual springl at an irregular vertex is far from flat, duals also
@@ -637,8 +636,7 @@ choice is the springl <strong>element type</strong>: quads (default) or triangle
   similarity transform (rotation and uniform scale about the moved particle) of its previous shape
   that best fits the moved vertexes <sup class="ref"><a href="#ref-10">[10]</a></sup>, so it is planar again and its normal turns with the flow;
   (4) relaxation pulls each vertex toward the nearest edge of a neighbor springl and its arm toward
-  the rest length, and the tangential pulls turn the springl about its particle. Regenerate with
-  <code>python3 docs/make_advection_diagram_3d.py</code>.</figcaption>
+  the rest length, and the tangential pulls turn the springl about its particle.</figcaption>
 </figure>
 
 <p><strong>Adaptive octree.</strong> <code>AdaptiveSpringLevelSet3D</code> and <code>AdaptiveDoubleweaveLevelSet3D</code> run on <code>AdaptiveGrid3D</code>, the octree
@@ -647,7 +645,7 @@ from the finest leaf and the odd corners on coarse/fine faces and edges interpol
 coarse ones.</p>
 
 <ul>
-  <li><strong>Adaptation</strong> keeps a narrow band <sup class="ref"><a href="#ref-13">[13]</a></sup> at one, finest resolution around the springls, as an OpenVDB <sup class="ref"><a href="#ref-8">[8]</a></sup>
+  <li><strong>Adaptation</strong> keeps a narrow band <sup class="ref"><a href="#ref-13">[13]</a></sup> at a single, finest resolution around the springls, as an OpenVDB <sup class="ref"><a href="#ref-8">[8]</a></sup>
   grid does: every leaf within one sub-step of motion plus <code>bandCells</code> (5) finest cells of a
   springl particle is refined to the maximum depth, and parents with no particle near them coarsen.
   Springls are created at the finest cell size.</li>
@@ -693,9 +691,9 @@ before the rebuild, so it needs no slack for a sub-step of motion.</p>
 
 <!-- ============================================================ 4 -->
 <section>
-<h2 id="results"><span class="num">4</span>Results<a class="anchor" href="#results">#</a></h2>
+<h2 id="results"><span class="num">4</span>Results<a class="anchor" href="#results" aria-label="Link to this section"></a></h2>
 
-<h3 id="r-setup"><span class="num">4.1</span>Experimental setup<a class="anchor" href="#r-setup">#</a></h3>
+<h3 id="r-setup"><span class="num">4.1</span>Experimental setup<a class="anchor" href="#r-setup" aria-label="Link to this section"></a></h3>
 
 <p>All methods are evaluated on the Enright deformation test <sup class="ref"><a href="#ref-2">[2]</a></sup>: a
 circle (2D) or sphere (3D) of radius 0.15 is stretched by a time-reversing vortex (in 3D, LeVeque's
@@ -714,7 +712,7 @@ sl-enright2d --sl-only --no-gui -g 64 -T 8 -d 4 --max-time-step 0.00125 --subste
 equivalent) for the adaptive ones, period T = 3, quad springls, 8 OpenMP threads (16 for the
 semi-Lagrangian run), produced with <code>enright3d --no-gui -m &lt;method&gt; --frames &lt;dir&gt;</code>.</p>
 
-<h3 id="r-2d"><span class="num">4.2</span>2D Enright test<a class="anchor" href="#r-2d">#</a></h3>
+<h3 id="r-2d"><span class="num">4.2</span>2D Enright test<a class="anchor" href="#r-2d" aria-label="Link to this section"></a></h3>
 
 <div class="gallery">
   <figure class="clip">
@@ -772,7 +770,7 @@ the CFL limit binds), so it takes as many as the others; each of its steps rebui
 1024 × 1024 equivalent. The adaptive methods merge springls that the flow compresses, so their counts
 fall again as the filament shortens (peak in parentheses).</p>
 
-<h3 id="r-sl2d"><span class="num">4.3</span>Effect of the CFL limit in 2D<a class="anchor" href="#r-sl2d">#</a></h3>
+<h3 id="r-sl2d"><span class="num">4.3</span>Effect of the CFL limit in 2D<a class="anchor" href="#r-sl2d" aria-label="Link to this section"></a></h3>
 
 <p><code>sl-enright2d</code> compares the semi-Lagrangian and CFL-limited adaptive doubleweave side by
 side at 128², T = 8, depth 2, with a sub-step cap of T/50: the semi-Lagrangian run can use the whole
@@ -789,7 +787,7 @@ cap, but the CFL limit holds the adaptive doubleweave far below it.</p>
 <p>The semi-Lagrangian run takes 28× fewer sub-steps and 18× less time, with a third of the area
 error and a lower max shape error.</p>
 
-<h3 id="r-3d"><span class="num">4.4</span>3D Enright test<a class="anchor" href="#r-3d">#</a></h3>
+<h3 id="r-3d"><span class="num">4.4</span>3D Enright test<a class="anchor" href="#r-3d" aria-label="Link to this section"></a></h3>
 
 <div class="gallery">
   <figure class="clip">
@@ -844,9 +842,9 @@ methods keep the whole disk and end within 2.5% volume, most of which is already
 (−2.36%): the initial level set is the 32³ distance field interpolated onto the band. The
 semi-Lagrangian doubleweave has the lowest shape errors of all; here its sub-steps are capped by the
 schedule (T/800), not by the CFL limit, so it takes as many as the adaptive doubleweave.
-<code>--max-depth 4</code> (512³ equivalent) costs several times more per step.</p>
+Raising <code>--max-depth</code> to 4 (512³ equivalent) costs several times more per step.</p>
 
-<h3 id="r-sl3d"><span class="num">4.5</span>Effect of the CFL limit in 3D<a class="anchor" href="#r-sl3d">#</a></h3>
+<h3 id="r-sl3d"><span class="num">4.5</span>Effect of the CFL limit in 3D<a class="anchor" href="#r-sl3d" aria-label="Link to this section"></a></h3>
 
 <p><code>sl-enright3d</code> compares the semi-Lagrangian doubleweave with the CFL-limited adaptive
 doubleweave on a 32³ base grid refined to depth 2 (128³ equivalent), T = 3, with a sub-step cap of
@@ -862,9 +860,9 @@ T/50, where the CFL limit binds:</p>
 
 <p>At 128³ equivalent the sheet falls below the CFL-limited level set's resolution at its thinnest and
 tears; the semi-Lagrangian run keeps most of it (the middle of a sheet thinner than two capsules is
-inside), with a tenth of the shape error, in 6.3 times fewer sub-steps and 5.2 times less compute.</p>
+inside), with a tenth of the shape error, in 6.3× fewer sub-steps and with 5.2× less compute.</p>
 
-<h3 id="r-validation"><span class="num">4.6</span>Validation against the reference implementation<a class="anchor" href="#r-validation">#</a></h3>
+<h3 id="r-validation"><span class="num">4.6</span>Validation against the reference implementation<a class="anchor" href="#r-validation" aria-label="Link to this section"></a></h3>
 
 <p>The 2D code is a port of the springls in wedge, with Eigen in place of header-only-club. With
 matching inputs the level sets agree with wedge to float rounding, and Enright errors match its
@@ -879,7 +877,7 @@ springls, so current numbers differ from wedge's.</p>
 
 <!-- ============================================================ 5 -->
 <section>
-<h2 id="conclusion"><span class="num">5</span>Conclusion<a class="anchor" href="#conclusion">#</a></h2>
+<h2 id="conclusion"><span class="num">5</span>Conclusion<a class="anchor" href="#conclusion" aria-label="Link to this section"></a></h2>
 
 <p>Uniform spring level sets, single or doubleweave, are fast but bounded by their grid: on the
 Enright test at 64² (2D) and 128³ (3D) the thinning interface drops below a cell and is lost or torn.
@@ -890,8 +888,8 @@ remaining coupling to the grid — the CFL limit — and gives the lowest shape 
 dimensions, with up to 28× fewer sub-steps when the CFL limit binds.</p>
 
 <p><strong>Limitations.</strong> The semi-Lagrangian rule fuses fronts that come closer than two
-capsules (intended for colliding fronts, but it prevents topology preservation, which is not
-supported), and features thinner than the sign raster resolves are lost. Each semi-Lagrangian step
+capsules (intended for colliding fronts, but it means topology cannot be preserved), and features
+thinner than the sign raster can resolve are lost. Each semi-Lagrangian step
 rebuilds three grids, so when the schedule rather than the CFL limit bounds the step it costs about
 as much per step as the adaptive doubleweave. The adaptive methods remain one to two orders of
 magnitude slower per step than the uniform ones.</p>
@@ -899,7 +897,7 @@ magnitude slower per step than the uniform ones.</p>
 
 <!-- ============================================================ refs -->
 <section>
-<h2 id="references">References<a class="anchor" href="#references">#</a></h2>
+<h2 id="references">References<a class="anchor" href="#references" aria-label="Link to this section"></a></h2>
 
 <ol class="refs">
   <li id="ref-1">B. C. Lucas, M. Kazhdan, and R. H. Taylor, "Spring Level Sets: A Deformable Model
@@ -950,9 +948,9 @@ magnitude slower per step than the uniform ones.</p>
 
 <!-- ============================================================ appendix -->
 <section class="appendix">
-<h2 id="appendix">Appendices<a class="anchor" href="#appendix">#</a></h2>
+<h2 id="appendix">Appendices<a class="anchor" href="#appendix" aria-label="Link to this section"></a></h2>
 
-<h3 id="a-build"><span class="num">A</span>Building<a class="anchor" href="#a-build">#</a></h3>
+<h3 id="a-build"><span class="num">A</span>Building<a class="anchor" href="#a-build" aria-label="Link to this section"></a></h3>
 
 <p>The library depends only on <a href="https://eigen.tuxfamily.org">Eigen</a> 3.4.0 and
 <a href="https://github.com/USCiLab/cereal">cereal</a> 1.3.2 (3D checkpoints), both header-only submodules
@@ -977,9 +975,9 @@ cmake --build build</code></pre>
 <p>The GUI needs GLFW 3.3+ (<code>libglfw3-dev</code>); without a system copy, initialize
 <code>external/nanovg/external/glfw</code> and it is built from source.</p>
 
-<h3 id="a-enright2d"><span class="num">B</span>2D examples<a class="anchor" href="#a-enright2d">#</a></h3>
+<h3 id="a-enright2d"><span class="num">B</span>2D examples<a class="anchor" href="#a-enright2d" aria-label="Link to this section"></a></h3>
 
-<h4>B.1 <code>enright2d</code></h4>
+<h4 id="b1-enright2d">B.1 <code>enright2d</code><a class="anchor" href="#b1-enright2d" aria-label="Link to this section"></a></h4>
 <pre><code>./build/enright2d                                   <span class="c"># GUI, all four methods side by side</span>
 ./build/enright2d -m adaptive-doubleweave           <span class="c"># GUI, one method</span>
 ./build/enright2d --no-gui -g 96 -T 4               <span class="c"># headless, all four methods, prints final errors</span>
@@ -1002,7 +1000,7 @@ share one view), R resets the view. The sidebar toggles springls, capsules, part
 normals, primal/dual constellations, contour, reference circle and the level-set grid
 (adaptive blocks are colored by depth).</p>
 
-<h4>B.2 <code>sl-enright2d</code></h4>
+<h4 id="b2-sl-enright2d">B.2 <code>sl-enright2d</code><a class="anchor" href="#b2-sl-enright2d" aria-label="Link to this section"></a></h4>
 <pre><code>./build/sl-enright2d                            <span class="c"># GUI, side by side, equal compute</span>
 ./build/sl-enright2d --pacing same-time         <span class="c"># GUI, compare shapes at equal simulation time</span>
 ./build/sl-enright2d --no-gui                   <span class="c"># headless comparison (Table 4)</span>
@@ -1016,9 +1014,9 @@ have spent the same compute; <code>same-time</code> steps whichever is behind in
 <code>--max-time-step</code>, <code>--set</code>, <code>--csv</code>, <code>--frames</code>, …). Tuning keys: <code>capsuleCells</code>,
 <code>minBandPixels</code>, <code>maxStrain</code>, <code>maxStepCells</code>, <code>minLoopCells</code>.</p>
 
-<h3 id="a-enright3d"><span class="num">C</span>3D examples<a class="anchor" href="#a-enright3d">#</a></h3>
+<h3 id="a-enright3d"><span class="num">C</span>3D examples<a class="anchor" href="#a-enright3d" aria-label="Link to this section"></a></h3>
 
-<h4>C.1 <code>enright3d</code></h4>
+<h4 id="c1-enright3d">C.1 <code>enright3d</code><a class="anchor" href="#c1-enright3d" aria-label="Link to this section"></a></h4>
 <pre><code>./build/enright3d                                   <span class="c"># GUI, doubleweave with quads</span>
 ./build/enright3d -m all -e triangle                <span class="c"># GUI, single springls and doubleweave, triangles</span>
 ./build/enright3d --no-gui -m springls --csv out/metrics.csv
@@ -1049,7 +1047,7 @@ the planes at a fixed X, Y and Z, each with a slider below it. Pixels are colore
 (depth 0 for uniform grids), block outlines are darker, the inside of the surface is lighter, and
 the surface's cross-section is drawn exactly, from the mesh, in white.</p>
 
-<h4>C.2 <code>sl-enright3d</code></h4>
+<h4 id="c2-sl-enright3d">C.2 <code>sl-enright3d</code><a class="anchor" href="#c2-sl-enright3d" aria-label="Link to this section"></a></h4>
 <pre><code>./build/sl-enright3d                            <span class="c"># GUI, side by side, equal compute</span>
 ./build/sl-enright3d --no-gui                   <span class="c"># headless comparison (Table 7)</span>
 ./build/sl-enright3d --sl-only --no-gui --frames out/sl3d   <span class="c"># render the semi-Lagrangian run</span>
@@ -1059,7 +1057,7 @@ the surface's cross-section is drawn exactly, from the mesh, in white.</p>
 <code>--csv</code>, <code>--frames</code>, <code>--zoom</code>, <code>--hide</code>, …) and the pacing modes of <code>sl-enright2d</code>. Tuning keys:
 <code>capsuleCells</code>, <code>maxStrain</code>, <code>maxStepCells</code>, <code>minComponentCells</code>.</p>
 
-<h4>C.3 Checkpoints and profiling</h4>
+<h4 id="c3-checkpoints">C.3 Checkpoints and profiling<a class="anchor" href="#c3-checkpoints" aria-label="Link to this section"></a></h4>
 <p>Long 3D runs can be checkpointed and resumed, which makes it quick to study one stretch of a run.
 <code>--checkpoint-at t</code> (repeatable) saves each run's full state once it reaches time t (cereal's
 portable binary format, in <code>--checkpoint-dir</code>); <code>--resume file</code> starts a single-method run from such
@@ -1067,7 +1065,7 @@ a state, and a resumed run reproduces the uninterrupted one exactly. <code>--sto
 <code>--max-springl-growth f</code> (abort once the springl count exceeds f times its count at the start)
 end test runs early. Set <code>SPRINGLS_PROFILE=1</code> to print wall-clock time per phase at exit.</p>
 
-<h3 id="a-library"><span class="num">D</span>Library layout<a class="anchor" href="#a-library">#</a></h3>
+<h3 id="a-library"><span class="num">D</span>Library layout<a class="anchor" href="#a-library" aria-label="Link to this section"></a></h3>
 
 <p>Coordinates are level-set pixels. A simulation is driven by <code>setInitialLevelSet</code>,
 <code>setVelocityField</code> (optionally <code>setAdvectionSchedule</code>), <code>init()</code>, then <code>step()</code> until it returns
@@ -1075,7 +1073,7 @@ false. All sources are in <code>src/springls</code>.</p>
 
 <div class="table-wrap"><table>
 <caption><span class="fig">Table D1.</span> 2D classes.</caption>
-<thead><tr><th>file</th><th>contents</th></tr></thead>
+<thead><tr><th>class</th><th>contents</th></tr></thead>
 <tbody>
 <tr><td><code>SpringLevelSet2D</code></td><td>spring level sets on a uniform narrow-band level set</td></tr>
 <tr><td><code>DoubleweaveLevelSet2D</code></td><td>primal + dual constellations, each with its own level set for fill / contract</td></tr>
@@ -1090,7 +1088,7 @@ false. All sources are in <code>src/springls</code>.</p>
 
 <div class="table-wrap"><table>
 <caption><span class="fig">Table D2.</span> 3D classes.</caption>
-<thead><tr><th>file</th><th>contents</th></tr></thead>
+<thead><tr><th>class</th><th>contents</th></tr></thead>
 <tbody>
 <tr><td><code>SpringLevelSet3D</code></td><td>spring level sets on a uniform narrow-band 3D level set, quad or triangle springls; advected springls stay rigid by a least-squares similarity fit <sup class="ref"><a href="#ref-10">[10]</a></sup></td></tr>
 <tr><td><code>DoubleweaveLevelSet3D</code></td><td>primal + dual constellations, each with its own level set for fill / contract</td></tr>
@@ -1104,7 +1102,7 @@ false. All sources are in <code>src/springls</code>.</p>
 <tr><td><code>EnrightTest3D</code></td><td>3D deformation test <sup class="ref"><a href="#ref-2">[2]</a></sup><sup class="ref"><a href="#ref-9">[9]</a></sup>: velocity, configuration, metrics, method factory</td></tr>
 </tbody></table></div>
 
-<h3 id="a-citation"><span class="num">E</span>Citation<a class="anchor" href="#a-citation">#</a></h3>
+<h3 id="a-citation"><span class="num">E</span>Citation<a class="anchor" href="#a-citation" aria-label="Link to this section"></a></h3>
 <p>If you use this code, please cite:</p>
 <pre><code>@article{lucas2012springls,
   author  = {Lucas, Blake C. and Kazhdan, Michael and Taylor, Russell H.},
