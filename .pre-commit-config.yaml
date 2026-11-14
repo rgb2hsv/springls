@@ -1,0 +1,11 @@
+# pre-commit hooks for springls. Set up once per clone:
+#   pip install pre-commit && pre-commit install
+# Check every file (e.g. in CI):  pre-commit run --all-files
+exclude: ^external/
+
+repos:
+  - repo: https://github.com/pre-commit/mirrors-clang-format
+    rev: v20.1.8
+    hooks:
+      - id: clang-format
+        types_or: [c++, c]
