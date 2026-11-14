@@ -1,21 +1,21 @@
-/* Springls documentation site — dark theme */
+/* Springls documentation site — dark theme, GitHub dark color scheme (Primer) */
 
 :root {
-  --bg: #0e0f13;
-  --bg-elev: #15171d;
-  --bg-sidebar: #111318;
-  --bg-code: #0a0b0e;
-  --border: #23262f;
-  --border-strong: #2f333e;
-  --text: #d7dae0;
-  --text-muted: #8b919e;
-  --text-faint: #5d6370;
-  --heading: #f2f3f5;
-  --accent: #6ea8fe;
-  --accent-soft: rgba(110, 168, 254, 0.12);
+  --bg: #0d1117;
+  --bg-elev: #151b23;
+  --bg-sidebar: #010409;
+  --bg-code: #161b22;
+  --border: #30363d;
+  --border-strong: #3d444d;
+  --text: #e6edf3;
+  --text-muted: #9198a1;
+  --text-faint: #6e7681;
+  --heading: #f0f6fc;
+  --accent: #4493f8;
+  --accent-soft: rgba(56, 139, 253, 0.15);
   --primal: #e57373;
   --dual: #7fa7d9;
-  --good: #7bd88f;
+  --good: #3fb950;
   --radius: 10px;
   --sidebar-w: 280px;
   --content-w: 920px;
@@ -100,8 +100,22 @@ a:hover { text-decoration: underline; text-underline-offset: 3px; }
   border-top: 1px solid var(--border);
   font-size: 13px;
 }
-.sidebar-footer a { color: var(--text-muted); }
-.sidebar-footer a:hover { color: var(--heading); }
+/* "View on GitHub" button, after the GitHub Pages themes' header button. */
+.sidebar-footer a {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 8px 14px;
+  color: var(--heading); font-weight: 600;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  transition: background 0.15s, border-color 0.15s;
+}
+.sidebar-footer .gh-icon { flex: none; }
+.sidebar-footer a:hover {
+  color: var(--heading); text-decoration: none;
+  background: rgba(255, 255, 255, 0.12);
+  border-color: var(--text-faint);
+}
 
 .menu-toggle {
   display: none;
@@ -236,11 +250,11 @@ li::marker { color: var(--text-faint); }
 code {
   font-family: var(--mono);
   font-size: 0.86em;
-  background: rgba(255,255,255,0.06);
-  border: 1px solid var(--border);
+  background: rgba(101, 108, 118, 0.2);
+  border: 1px solid transparent;
   padding: 1px 6px;
-  border-radius: 5px;
-  color: #e8e2c8;
+  border-radius: 6px;
+  color: var(--text);
   overflow-wrap: anywhere;
 }
 
@@ -263,16 +277,16 @@ pre code {
   font-size: inherit;
   white-space: pre;
 }
-pre .c { color: var(--text-faint); }
-pre .k { color: #c792ea; }
-pre .s { color: #c3e88d; }
+pre .c { color: var(--text-muted); }
+pre .k { color: #ff7b72; }
+pre .s { color: #a5d6ff; }
 
 pre.pseudo {
-  border-left: 3px solid rgba(199, 146, 234, 0.55);
+  border-left: 3px solid rgba(210, 168, 255, 0.55);
   font-size: 13.25px;
   line-height: 1.7;
 }
-pre.pseudo .f { color: #82aaff; }
+pre.pseudo .f { color: #d2a8ff; }
 pre.pseudo sub, pre.pseudo sup { font-size: 0.72em; line-height: 0; }
 
 p.math {
@@ -376,7 +390,7 @@ figcaption {
   gap: 8px;
 }
 .clip figcaption a { font-weight: 400; font-size: 12.5px; color: var(--text-muted); }
-.clip.featured { border-color: rgba(123, 216, 143, 0.35); }
+.clip.featured { border-color: rgba(63, 185, 80, 0.4); }
 
 .callout {
   border: 1px solid var(--border);
