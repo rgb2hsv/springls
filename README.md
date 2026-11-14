@@ -1,3 +1,5 @@
+<img src="docs/springls-badge.svg" align="left" width="120" alt="Springls badge">
+
 # Springls (Spring Level Sets)
 
 A C++ implementation of spring level sets [1] in 2D and 3D: a mesh-free deformable-surface
@@ -10,7 +12,9 @@ variants on a block-adaptive quadtree / octree, and a **semi-Lagrangian doublewe
 the level set from the springls every sub-step, so it has no CFL limit. Enright deformation tests
 [2] for each method run with a GUI or headless.
 
-**Full documentation, algorithm walkthroughs, results and videos: [docs/index.html](docs/index.html)**
+<br clear="left">
+
+**Full documentation, algorithm walkthroughs, results and videos: [rgb2hsv.github.io/springls](https://rgb2hsv.github.io/springls/)**
 (served as the project site from `docs/`).
 
 | Adaptive Springls 2D | Adaptive Springls 3D |
@@ -55,7 +59,7 @@ optionally OpenMP. The examples add [Dear ImGui](https://github.com/ocornut/imgu
 2. D. Enright, R. Fedkiw, J. Ferziger, and I. Mitchell, "A Hybrid Particle Level Set Method for
    Improved Interface Capturing," *Journal of Computational Physics*, 183(1):83–116, 2002.
 
-The [documentation](docs/index.html#references) lists every reference used by the implementation.
+The [documentation](https://rgb2hsv.github.io/springls/#references) lists every reference used by the implementation.
 If you use this code, please cite:
 
 ```bibtex
