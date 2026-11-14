@@ -14,7 +14,7 @@ the level set from the springls every sub-step, so it has no CFL limit. Enright 
 
 <br clear="left">
 
-**Full documentation, algorithm walkthroughs, results and videos: [docs/index.html](docs/index.html)**
+**Full documentation, algorithm walkthroughs, results and videos: [rgb2hsv.github.io/springls](https://rgb2hsv.github.io/springls/)**
 (served as the project site from `docs/`).
 
 | Adaptive Springls 2D | Adaptive Springls 3D |
@@ -59,7 +59,7 @@ optionally OpenMP. The examples add [Dear ImGui](https://github.com/ocornut/imgu
 2. D. Enright, R. Fedkiw, J. Ferziger, and I. Mitchell, "A Hybrid Particle Level Set Method for
    Improved Interface Capturing," *Journal of Computational Physics*, 183(1):83–116, 2002.
 
-The [documentation](docs/index.html#references) lists every reference used by the implementation.
+The [documentation](https://rgb2hsv.github.io/springls/#references) lists every reference used by the implementation.
 If you use this code, please cite:
 
 ```bibtex
