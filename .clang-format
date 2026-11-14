@@ -1,0 +1,50 @@
+# clang-format configuration for springls (src/ and examples/; external/ is not formatted).
+# Fitted to the existing code: 4-space indent, 160 columns, braces on their own line after
+# functions, classes and namespaces, and on the same line for control statements and structs.
+# Requires clang-format 14+; the pre-commit hook pins clang-format 20.
+BasedOnStyle: Google
+Language: Cpp
+Standard: c++17
+IndentWidth: 4
+ContinuationIndentWidth: 4
+ConstructorInitializerIndentWidth: 4
+AccessModifierOffset: -4
+ColumnLimit: 160
+
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterFunction: true
+  AfterNamespace: true
+  AfterClass: true
+  AfterStruct: false
+  AfterEnum: false
+  AfterControlStatement: Never
+  BeforeElse: false
+  SplitEmptyFunction: false
+  SplitEmptyRecord: false
+NamespaceIndentation: None
+FixNamespaceComments: true
+IndentCaseLabels: true
+
+AllowShortFunctionsOnASingleLine: All
+AllowShortCaseLabelsOnASingleLine: true
+AllowShortIfStatementsOnASingleLine: AllIfsAndElse
+AllowShortLoopsOnASingleLine: true
+AllowShortBlocksOnASingleLine: Never
+AllowShortEnumsOnASingleLine: false
+
+DerivePointerAlignment: false
+PointerAlignment: Right
+ReferenceAlignment: Right
+
+SpacesBeforeTrailingComments: 2
+AlignTrailingComments: true
+ReflowComments: false
+
+SortIncludes: CaseSensitive
+IncludeBlocks: Preserve
+
+BinPackArguments: true
+BinPackParameters: true
+KeepEmptyLinesAtTheStartOfBlocks: false
+MaxEmptyLinesToKeep: 1

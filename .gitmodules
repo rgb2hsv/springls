@@ -1,0 +1,15 @@
+[submodule "external/imgui"]
+	path = external/imgui
+	url = https://github.com/ocornut/imgui.git
+[submodule "external/nanovg"]
+	path = external/nanovg
+	url = https://github.com/rgb2hsv/nanovg.git
+[submodule "external/argparse"]
+	path = external/argparse
+	url = https://github.com/p-ranav/argparse.git
+[submodule "external/cereal"]
+	path = external/cereal
+	url = https://github.com/USCiLab/cereal.git
+[submodule "external/eigen"]
+	path = external/eigen
+	url = https://gitlab.com/libeigen/eigen.git
