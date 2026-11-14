@@ -216,6 +216,8 @@ h2:hover .anchor, h3:hover .anchor { opacity: 1; }
 h2 .anchor:hover, h3 .anchor:hover { color: var(--accent); text-decoration: none; }
 
 p { margin: 0 0 16px; }
+/* Justify prose (left and right edges flush); hyphenation keeps word gaps even. */
+.content p, .content li { text-align: justify; hyphens: auto; -webkit-hyphens: auto; }
 strong { color: var(--heading); font-weight: 600; }
 em { color: var(--heading); }
 
