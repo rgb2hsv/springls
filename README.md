@@ -15,7 +15,6 @@ the level set from the springls every sub-step, so it has no CFL limit. Enright 
 <br clear="left">
 
 **Full documentation, algorithm walkthroughs, results and videos: [rgb2hsv.github.io/springls](https://rgb2hsv.github.io/springls/)**
-(served as the project site from `docs/`).
 
 | Adaptive Springls 2D | Adaptive Springls 3D |
 |:---:|:---:|
