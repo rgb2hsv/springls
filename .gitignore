@@ -71,3 +71,6 @@ Testing/
 .claude/
 .cproject
 .project
+
+# Superpowers design docs and plans (local only)
+docs/superpowers/
