@@ -1,3 +1,5 @@
+<img src="docs/springls-badge.svg" align="left" width="120" alt="Springls badge">
+
 # Springls (Spring Level Sets)
 
 A C++ implementation of spring level sets [1] in 2D and 3D: a mesh-free deformable-surface
@@ -9,6 +11,8 @@ surface changes topology freely. Alongside the original method it includes
 variants on a block-adaptive quadtree / octree, and a **semi-Lagrangian doubleweave** that rebuilds
 the level set from the springls every sub-step, so it has no CFL limit. Enright deformation tests
 [2] for each method run with a GUI or headless.
+
+<br clear="left">
 
 **Full documentation, algorithm walkthroughs, results and videos: [docs/index.html](docs/index.html)**
 (served as the project site from `docs/`).
