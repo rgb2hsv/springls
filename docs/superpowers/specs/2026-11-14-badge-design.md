@@ -37,3 +37,9 @@ explains the method visually.
 
 ## Left to the builder
 The exact swirl shape and springl spacing, tuned by eye in the browser.
+
+## Revision (2026-11-14)
+The Enright swirl read as a thin sliver. At the user's request, the shape is now the blob from
+the "Semi-Lagrangian doubleweave: one sub-step" figure, r(θ) = 12 + 2.2 cos(3θ + 0.5). It sits
+in front of a dashed outline of the undeformed circle it started as, which replaces the motion
+trails. Untilted, no animation.
