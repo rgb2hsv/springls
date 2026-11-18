@@ -44,6 +44,25 @@ The GUI needs GLFW 3.3+ (`libglfw3-dev`); without a system copy, initialize
 ./build/enright3d -m adaptive-springls
 ```
 
+### Windows
+
+Needs Visual Studio 2022 or later with the *Desktop development with C++* workload, and CMake
+3.30+ (for MSVC's LLVM OpenMP runtime; with older CMake set `SPRINGLS_USE_OPENMP=OFF`). GLFW
+and GLEW are built from nanovg's submodules; GLEW's URL there is SSH, so point it at HTTPS first.
+In PowerShell:
+
+```powershell
+git submodule update --init
+git -C external/nanovg config submodule.external/glew.url https://github.com/rgb2hsv/glew.git
+git -C external/nanovg submodule update --init external/glfw external/glew
+cmake -S . -B build                  # Visual Studio generator
+cmake --build build --config Release --parallel
+.\build\Release\enright2d.exe
+```
+
+With the Visual Studio generator the programs land in `build\Release\`. To use Ninja instead, run
+the same `cmake -G Ninja` commands as above from a *Developer PowerShell for VS*.
+
 ## Attributions
 
 The library depends only on [Eigen](https://eigen.tuxfamily.org) 3.4.0 and

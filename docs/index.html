@@ -975,6 +975,22 @@ cmake --build build</code></pre>
 <p>The GUI needs GLFW 3.3+ (<code>libglfw3-dev</code>); without a system copy, initialize
 <code>external/nanovg/external/glfw</code> and it is built from source.</p>
 
+<p><strong>Windows.</strong> Needs Visual Studio 2022 or later with the <em>Desktop development with C++</em>
+workload, and CMake 3.30+ (for MSVC&rsquo;s LLVM OpenMP runtime; with older CMake set
+<code>SPRINGLS_USE_OPENMP=OFF</code>). GLFW and GLEW are built from nanovg&rsquo;s submodules; GLEW&rsquo;s URL
+there is SSH, so point it at HTTPS first. In PowerShell:</p>
+
+<pre><code>git submodule update --init
+git -C external/nanovg config submodule.external/glew.url https://github.com/rgb2hsv/glew.git
+git -C external/nanovg submodule update --init external/glfw external/glew
+cmake -S . -B build                                 <span class="c"># Visual Studio generator</span>
+cmake --build build --config Release --parallel
+.\build\Release\enright2d.exe</code></pre>
+
+<p>With the Visual Studio generator the programs land in <code>build\Release\</code>, so the
+<code>./build/…</code> commands below become <code>.\build\Release\….exe</code>. To use Ninja instead,
+run the commands above with <code>-G Ninja</code> from a <em>Developer PowerShell for VS</em>.</p>
+
 <h3 id="a-enright2d"><span class="num">B</span>2D examples<a class="anchor" href="#a-enright2d" aria-label="Link to this section"></a></h3>
 
 <h4 id="b1-enright2d">B.1 <code>enright2d</code><a class="anchor" href="#b1-enright2d" aria-label="Link to this section"></a></h4>

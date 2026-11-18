@@ -36,6 +36,8 @@ target_include_directories(springls PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/external
 target_link_libraries(springls PUBLIC springls_eigen)
 
 if(SPRINGLS_USE_OPENMP)
+	# MSVC's default OpenMP 2.0 lacks min/max reductions and tasks; use its LLVM runtime (CMake 3.30+).
+	set(OpenMP_RUNTIME_MSVC llvm)
 	find_package(OpenMP COMPONENTS CXX)
 	if(OpenMP_CXX_FOUND)
 		target_link_libraries(springls PUBLIC OpenMP::OpenMP_CXX)
@@ -94,6 +96,21 @@ if(SPRINGLS_BUILD_GUI)
 	# OpenGL 3 entry points: GLEW where available (needed on Windows), otherwise the system
 	# prototypes (Linux / macOS).
 	find_package(GLEW QUIET)
+	if(WIN32 AND NOT GLEW_FOUND)
+		# No installed GLEW: build the static library from nanovg's submodule.
+		set(SPRINGLS_GLEW_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/nanovg/external/glew)
+		if(EXISTS ${SPRINGLS_GLEW_DIR}/src/glew.c)
+			add_library(springls_glew STATIC ${SPRINGLS_GLEW_DIR}/src/glew.c)
+			target_include_directories(springls_glew PUBLIC ${SPRINGLS_GLEW_DIR}/include)
+			target_compile_definitions(springls_glew PUBLIC GLEW_STATIC)
+			target_link_libraries(springls_glew PUBLIC OpenGL::GL)
+			add_library(GLEW::GLEW ALIAS springls_glew)
+			set(GLEW_FOUND TRUE)
+		else()
+			message(FATAL_ERROR "GLEW not found. On Windows run "
+				"'git -C external/nanovg submodule update --init external/glew', or set SPRINGLS_BUILD_GUI=OFF.")
+		endif()
+	endif()
 endif()
 
 # ------------------------------------------------------------------------------------------------
