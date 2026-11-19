@@ -52,6 +52,8 @@ protected:
     bool mSplitOnRefine = true;
     void writeState(cereal::PortableBinaryOutputArchive &ar) const override;
     void readState(cereal::PortableBinaryInputArchive &ar) override;
+    bool writeLevelSets(VdbWriter &writer, std::string &error) const override;
+    bool readLevelSets(const VdbReader &reader, std::string &error) override;
 
     void initLevelSet() override;
     float contourScale(uint32_t vertex) const override { return (vertex < mContourScales.size()) ? mContourScales[vertex] : 1.0f; }
@@ -111,6 +113,8 @@ protected:
     uint64_t mFillCandidatesStamp = std::numeric_limits<uint64_t>::max();
     void writeState(cereal::PortableBinaryOutputArchive &ar) const override;
     void readState(cereal::PortableBinaryInputArchive &ar) override;
+    bool writeLevelSets(VdbWriter &writer, std::string &error) const override;
+    bool readLevelSets(const VdbReader &reader, std::string &error) override;
 
     void swapState(size_t c);
     void evolveConstellations();

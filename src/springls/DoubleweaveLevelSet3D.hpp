@@ -47,6 +47,8 @@ protected:
     std::vector<uint8_t> mOldConstellations;
     void writeState(cereal::PortableBinaryOutputArchive &ar) const override;
     void readState(cereal::PortableBinaryInputArchive &ar) override;
+    bool writeLevelSets(VdbWriter &writer, std::string &error) const override;
+    bool readLevelSets(const VdbReader &reader, std::string &error) override;
 
     // Exchanges the base-class level set / iso-surface with constellation w's.
     void swapConstellation(size_t w);

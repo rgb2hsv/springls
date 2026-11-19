@@ -5,11 +5,17 @@
 #include <array>
 #include <cstdint>
 #include <functional>
+#include <iosfwd>
+#include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace springls
 {
+class VdbWriter;
+class VdbReader;
+
 // Block-adaptive 3D level set grid (sparse octree of uniform blocks); 3D counterpart of
 // AdaptiveGrid2D.
 //
@@ -168,6 +174,24 @@ public:
     void extractSurface(ElementType type, SurfaceMesh3D &mesh, std::vector<float> &vertexScales);
 
     size_t tileCount() const;
+
+    // The grid as an OpenVDB file (written and read with tinyvdb), viewable in VDB tools:
+    //  - "phi_d<d>": a float level set per depth d, voxel size 2^-d, where voxel (8i + a, 8j + b, 8k + c) is
+    //    corner (a, b, c) of block (d, i, j, k), so each block is one VDB leaf node and blocks share their
+    //    border corners. Tiles are left out (VDB background).
+    //  - "blocks_d<d>" (int32) and "tiles_d<d>" (float) at block coordinates (voxel size 8 * 2^-d): every
+    //    live block's flags, and each tile's value.
+    //  - "phi_d<d>_p<n>": every corner of the rare blocks whose far-face corners differ from what the
+    //    neighbor sharing them stores, split by block parity n so these blocks never touch.
+    // Band settings and `metadata` (string pairs, e.g. what the grid is of) are stored on "blocks_d0".
+    // Every live block's values and flags round-trip exactly; blocks are renumbered in key order (dead
+    // blocks are dropped). Return false with a message on failure; a failed loadVdb() leaves the grid
+    // unchanged.
+    bool saveVdb(std::ostream &out, const std::vector<std::pair<std::string, std::string>> &metadata, std::string &error) const;
+    bool loadVdb(std::istream &in, std::vector<std::pair<std::string, std::string>> &metadata, std::string &error);
+    // The same grids added to (or read from) a file shared with others, every grid name prefixed by `prefix`.
+    bool writeVdb(VdbWriter &writer, const std::string &prefix, std::string &error) const;
+    bool readVdb(const VdbReader &reader, const std::string &prefix, std::string &error);
 
     // cereal serialization (checkpoints): every block (dead ones too, so indexes stay the same) and
     // the band settings; the key index, leaf list and plans are rebuilt on load.

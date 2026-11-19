@@ -1,6 +1,7 @@
 #include "Experiment.hpp"
 
 #include <springls/AdaptiveSpringLevelSet3D.hpp>
+#include <springls/Ply.hpp>
 
 #include <algorithm>
 #include <chrono>
@@ -51,13 +52,16 @@ bool Experiment::init(const ExperimentOptions &options, std::string &error)
         run.seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
         run.initial = MeasureEnright(*run.sim, run.config);
         if (!mOptions.resumeFile.empty()) {
-            std::ifstream in(mOptions.resumeFile, std::ios::binary);
-            if (!in) {
-                error = "could not open " + mOptions.resumeFile.string();
+            // The state file and its level sets beside it (<name>.state and <name>.vdb).
+            std::filesystem::path levelSetFile = mOptions.resumeFile;
+            levelSetFile.replace_extension(".vdb");
+            std::ifstream in(mOptions.resumeFile, std::ios::binary), levelSets(levelSetFile, std::ios::binary);
+            if (!in || !levelSets) {
+                error = "could not open " + (!in ? mOptions.resumeFile : levelSetFile).string();
                 return false;
             }
             std::string message;
-            if (!run.sim->loadState(in, message)) {
+            if (!run.sim->loadState(in, levelSets, message)) {
                 error = mOptions.resumeFile.string() + ": " + message;
                 return false;
             }
@@ -142,14 +146,23 @@ bool Experiment::saveCheckpoints(Run &run, std::string &error)
         char name[160];
         std::snprintf(name, sizeof(name), "%s_%s_g%d_d%d_t%.4f.state", MethodKey(run.method), ElementTypeKey(mOptions.elementType), run.config.gridSize,
                       mOptions.maxDepth, t);
+        // The springls and scalar state (cereal) and the level sets (OpenVDB) beside it.
         const std::filesystem::path file = mOptions.checkpointDir / name;
-        std::ofstream out(file, std::ios::binary);
-        if (!out || !run.sim->saveState(out, error)) {
-            if (error.empty()) error = "could not write " + file.string();
+        std::filesystem::path levelSetFile = file;
+        levelSetFile.replace_extension(".vdb");
+        std::ofstream out(file, std::ios::binary), levelSets(levelSetFile, std::ios::binary);
+        if (!out || !levelSets || !run.sim->saveState(out, levelSets, error)) {
+            if (error.empty()) error = "could not write " + (!out ? file : levelSetFile).string();
             return false;
         }
-        std::cout << "Saved " << MethodTitle(run.method) << " at t = " << run.current.time << " (step " << run.sim->getIteration() << ") to " << file.string()
-                  << std::endl;
+        // The iso-surface and springls as PLY meshes, for viewing.
+        std::filesystem::path isoFile = file, springlFile = file;
+        isoFile.replace_extension(".iso.ply");
+        springlFile.replace_extension(".springls.ply");
+        const Manifold3D &manifold = run.sim->getManifold();
+        if (!WriteMeshPly(isoFile, manifold.isoSurface, true, error) || !WriteSpringlsPly(springlFile, manifold, true, error)) return false;
+        std::cout << "Saved " << MethodTitle(run.method) << " at t = " << run.current.time << " (step " << run.sim->getIteration() << ") to " << file.string() << ", "
+                  << levelSetFile.filename().string() << ", " << isoFile.filename().string() << " and " << springlFile.filename().string() << std::endl;
     }
     return true;
 }

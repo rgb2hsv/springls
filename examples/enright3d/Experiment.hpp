@@ -32,8 +32,10 @@ struct ExperimentOptions {
     bool verbose = false;
     Pacing pacing = Pacing::Lockstep;
     // Checkpoints: each run saves its state (SpringLevelSet3D::saveState) to checkpointDir once its
-    // simulation time reaches each of checkpointTimes. resumeFile (one method only) starts the run
-    // from a saved state instead of t = 0. Runs stop once they reach stopAt.
+    // simulation time reaches each of checkpointTimes, as <name>.state (springls and scalars, cereal) and
+    // <name>.vdb (every level set, OpenVDB). resumeFile (a .state, one method only) starts the run from a
+    // saved state, with the .vdb beside it, instead of t = 0. Runs stop once they reach stopAt. Each checkpoint
+    // also writes the iso-surface and springls as binary PLY meshes (<name>.iso.ply, <name>.springls.ply).
     std::vector<double> checkpointTimes;
     std::filesystem::path checkpointDir = "checkpoints";
     std::filesystem::path resumeFile;
