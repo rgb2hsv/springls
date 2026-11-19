@@ -1,10 +1,14 @@
 #pragma once
 #include <springls/Volume.hpp>
 
+#include <string>
 #include <vector>
 
 namespace springls
 {
+class VdbWriter;
+class VdbReader;
+
 // Narrow-band signed level set on a uniform 3D grid (phi < 0 inside, in voxels), updated with the
 // sparse-field method [Whitaker, IJCV 1998]; 3D counterpart of NarrowBand2D.
 //
@@ -32,11 +36,20 @@ public:
     // and the band.
     void update(float timeStep);
 
-    // cereal serialization (checkpoints).
+    // cereal serialization (cached state).
     template <class Archive>
     void serialize(Archive &ar)
     {
         ar(mPhi, mSwap, mInBand, mActive, mDelta);
+    }
+    // Checkpoints split in two: the level sets (phi and the previous update) as VDB volumes "<prefix>phi" and
+    // "<prefix>previous" (see WriteVolumeVdb), and the band bookkeeping with cereal (serializeBand).
+    bool writeVdb(VdbWriter &writer, const std::string &prefix, std::string &error) const;
+    bool readVdb(const VdbReader &reader, const std::string &prefix, std::string &error);
+    template <class Archive>
+    void serializeBand(Archive &ar)
+    {
+        ar(mInBand, mActive, mDelta);
     }
 
 private:

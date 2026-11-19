@@ -13,3 +13,9 @@
 [submodule "external/eigen"]
 	path = external/eigen
 	url = https://gitlab.com/libeigen/eigen.git
+[submodule "external/tinyvdb"]
+	path = external/tinyvdb
+	url = https://github.com/syoyo/tinyvdb.git
+[submodule "external/happly"]
+	path = external/happly
+	url = https://github.com/nmwsharp/happly.git

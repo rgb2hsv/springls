@@ -101,9 +101,9 @@ int main(int argc, char *argv[])
         .default_value(std::vector<double>{})
         .append()
         .scan<'g', double>()
-        .help("save each run's state once its time reaches this (repeatable), to --checkpoint-dir");
+        .help("save each run's state (.state + .vdb level sets, plus .iso.ply / .springls.ply meshes) once its time reaches this (repeatable), to --checkpoint-dir");
     program.add_argument("--checkpoint-dir").default_value(std::string("checkpoints")).help("directory for --checkpoint-at state files");
-    program.add_argument("--resume").default_value(std::string()).help("start the (single) run from this state file instead of t = 0");
+    program.add_argument("--resume").default_value(std::string()).help("start the (single) run from this .state file (and the .vdb beside it) instead of t = 0");
     program.add_argument("--steps").default_value(0).scan<'i', int>().help("stop after this many steps from the start or resume (0: no limit)");
     program.add_argument("--max-springl-growth")
         .default_value(0.0)

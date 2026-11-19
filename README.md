@@ -25,7 +25,7 @@ the level set from the springls every sub-step, so it has no CFL limit. Enright 
 ## Build
 
 ```bash
-git submodule update --init          # eigen, cereal, imgui, nanovg, argparse (not recursive)
+git submodule update --init          # eigen, cereal, happly, tinyvdb, imgui, nanovg, argparse (not recursive)
 cmake -S . -B build -G Ninja         # Release by default
 cmake --build build
 ```
@@ -65,8 +65,10 @@ the same `cmake -G Ninja` commands as above from a *Developer PowerShell for VS*
 
 ## Attributions
 
-The library depends only on [Eigen](https://eigen.tuxfamily.org) 3.4.0 and
-[cereal](https://github.com/USCiLab/cereal) 1.3.2, both header-only submodules in `external/`, and
+The library depends on [Eigen](https://eigen.tuxfamily.org) 3.4.0 and
+[cereal](https://github.com/USCiLab/cereal) 1.3.2, [happly](https://github.com/nmwsharp/happly) (PLY meshes),
+all header-only submodules in `external/`,
+[tinyvdb](https://github.com/syoyo/tinyvdb) (OpenVDB files for the checkpointed level sets), and
 optionally OpenMP. The examples add [Dear ImGui](https://github.com/ocornut/imgui), a C++ port of
 [NanoVG](https://github.com/rgb2hsv/nanovg), [GLFW](https://www.glfw.org) and
 [argparse](https://github.com/p-ranav/argparse). The 2D code is a port of the springls in wedge.

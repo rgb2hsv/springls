@@ -1,4 +1,5 @@
 #include <springls/NarrowBand3D.hpp>
+#include <springls/Vdb.hpp>
 
 namespace springls
 {
@@ -138,5 +139,18 @@ void NarrowBand3D::addElements()
             }
         }
     }
+}
+bool NarrowBand3D::writeVdb(VdbWriter &writer, const std::string &prefix, std::string &error) const
+{
+    return WriteVolumeVdb(writer, prefix + "phi", mPhi, kMaxDistance, true, error) && WriteVolumeVdb(writer, prefix + "previous", mSwap, kMaxDistance, true, error);
+}
+
+bool NarrowBand3D::readVdb(const VdbReader &reader, const std::string &prefix, std::string &error)
+{
+    VolumeF phi, previous;
+    if (!ReadVolumeVdb(reader, prefix + "phi", phi, error) || !ReadVolumeVdb(reader, prefix + "previous", previous, error)) return false;
+    mPhi = std::move(phi);
+    mSwap = std::move(previous);
+    return true;
 }
 }  // namespace springls

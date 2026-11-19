@@ -138,13 +138,17 @@ public:
     int elementSize() const { return mManifold.elementSize(); }
     const Manifold3D &getManifold() const { return mManifold; }
 
-    // Checkpoints (cereal portable binary): the simulation state after init() or any step(), so a
-    // run can resume from it. Configuration is not stored: set the initial level set, velocity,
-    // schedule and tuning the same way, call init(), then loadState(). The file records the
-    // method (name()) and element type, and loadState() refuses a mismatch. Return false with a
-    // message on failure.
-    bool saveState(std::ostream &out, std::string &error) const;
-    bool loadState(std::istream &in, std::string &error);
+    // Checkpoints: the simulation state after init() or any step(), so a run can resume from it, in
+    // two files: `state` (cereal portable binary: the springls, scalars and band bookkeeping) and
+    // `levelSets` (an OpenVDB file, written with tinyvdb, holding every level set: "phi", "previous"
+    // and "unsigned" volumes of the uniform methods, the adaptive octree's "phi_d<depth>" grids, and
+    // each doubleweave constellation's own level set prefixed "primal_" / "dual_"). Configuration
+    // is not stored: set the initial level set, velocity, schedule and tuning the same way, call
+    // init(), then loadState(). Both files record the method (name()) and element type, and
+    // loadState() refuses a mismatch or files of different steps. Return false with a message on
+    // failure.
+    bool saveState(std::ostream &state, std::ostream &levelSets, std::string &error) const;
+    bool loadState(std::istream &state, std::istream &levelSets, std::string &error);
     const VolumeF &getLevelSet() const { return mBand.phi(); }
     const VolumeF &getUnsignedLevelSet() const { return mUnsignedLevelSet; }
     double getSimulationTime() const { return mSimulationTime; }
@@ -184,9 +188,12 @@ protected:
     Points3 mOldVertexes, mOldParticles, mOldNormals, mOldCorrespondences, mOldVelocities;
     std::vector<uint32_t> mOldVertexSpringl;
 
-    // Checkpoint contents: each subclass writes and reads its own state after its base's.
+    // Checkpoint contents: each subclass writes and reads its own state after its base's, its level
+    // sets as VDB grids (writeLevelSets / readLevelSets) and the rest with cereal.
     virtual void writeState(cereal::PortableBinaryOutputArchive &ar) const;
     virtual void readState(cereal::PortableBinaryInputArchive &ar);
+    virtual bool writeLevelSets(VdbWriter &writer, std::string &error) const;
+    virtual bool readLevelSets(const VdbReader &reader, std::string &error);
 
     // --- Extension points (each keeps every per-springl array in sync). ---
     // Builds the level set from mInitialLevelSet and extracts its iso-surface.

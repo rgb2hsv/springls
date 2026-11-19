@@ -18,13 +18,33 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
 endif()
 
 # ------------------------------------------------------------------------------------------------
-# Core library: spring level sets, doubleweave, adaptive variants. Depends only on Eigen (+ OpenMP).
+# Core library: spring level sets, doubleweave, adaptive variants. Depends on Eigen, cereal, happly and tinyvdb (+ OpenMP).
 # ------------------------------------------------------------------------------------------------
 # Eigen (header only, from the submodule at 3.4.0); no installed copy is used.
 set(SPRINGLS_EIGEN_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/eigen)
 if(NOT EXISTS ${SPRINGLS_EIGEN_DIR}/Eigen/Core)
 	message(FATAL_ERROR "Eigen not found in external/eigen. Run 'git submodule update --init external/eigen'.")
 endif()
+# tinyvdb (from the submodule) writes and reads the checkpointed level sets as OpenVDB files. Only its I/O library
+# (tinyvdb) and the sparse-to-tree builder in tinyvdb_mesh_ops are used; examples, tests, the GPU backend and
+# its own submodules are not needed.
+set(SPRINGLS_TINYVDB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/tinyvdb)
+if(NOT EXISTS ${SPRINGLS_TINYVDB_DIR}/src/tinyvdb_io.h)
+	message(FATAL_ERROR "tinyvdb not found in external/tinyvdb. Run 'git submodule update --init external/tinyvdb'.")
+endif()
+set(TINYVDB_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(TINYVDB_BUILD_BENCH OFF CACHE BOOL "" FORCE)
+set(TINYVDB_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(TINYVDB_BUILD_VDBRENDER OFF CACHE BOOL "" FORCE)
+set(TINYVDB_BUILD_TVDBVIEW OFF CACHE BOOL "" FORCE)
+set(TINYVDB_BUILD_PYTHON OFF CACHE BOOL "" FORCE)
+set(TINYVDB_BUILD_GPU OFF CACHE BOOL "" FORCE)
+set(TINYVDB_USE_CCACHE OFF CACHE BOOL "" FORCE)
+set(TINYVDB_THREAD_BACKEND NONE CACHE STRING "" FORCE)  # its task pool is not used
+# Portable binaries: no AVX2 / F16C requirement.
+set(TINYVDB_SIMD OFF CACHE BOOL "" FORCE)
+add_subdirectory(${SPRINGLS_TINYVDB_DIR} ${CMAKE_BINARY_DIR}/tinyvdb EXCLUDE_FROM_ALL)
+
 add_library(springls_eigen INTERFACE)
 target_include_directories(springls_eigen SYSTEM INTERFACE ${SPRINGLS_EIGEN_DIR})
 
@@ -33,7 +53,14 @@ add_library(springls STATIC ${SPRINGLS_SOURCES})
 target_include_directories(springls PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 # cereal (header only, from the submodule) writes checkpoints; only the library's sources use it.
 target_include_directories(springls PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/external/cereal/include)
+# happly (header only, from the submodule) reads and writes PLY meshes; only the library's sources use it.
+set(SPRINGLS_HAPPLY_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/happly)
+if(NOT EXISTS ${SPRINGLS_HAPPLY_DIR}/happly.h)
+	message(FATAL_ERROR "happly not found in external/happly. Run 'git submodule update --init external/happly'.")
+endif()
+target_include_directories(springls SYSTEM PRIVATE ${SPRINGLS_HAPPLY_DIR})
 target_link_libraries(springls PUBLIC springls_eigen)
+target_link_libraries(springls PRIVATE tinyvdb_mesh_ops tinyvdb)
 
 if(SPRINGLS_USE_OPENMP)
 	# MSVC's default OpenMP 2.0 lacks min/max reductions and tasks; use its LLVM runtime (CMake 3.30+).
