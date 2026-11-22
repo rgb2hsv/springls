@@ -47,6 +47,7 @@
           <li><a href="#m-sl"><span class="num">3.11</span>Semi-Lagrangian DoubleWeave</a></li>
           <li><a href="#m-3d"><span class="num">3.12</span>Extension to 3D</a></li>
           <li><a href="#m-levelset-methods"><span class="num">3.13</span>Level sets and MOGAC</a></li>
+          <li><a href="#intrinsic"><span class="num">3.14</span>Intrinsic springls</a></li>
         </ol>
       </li>
       <li><a href="#results"><span class="num">4</span>Results</a>
@@ -57,21 +58,11 @@
           <li><a href="#r-3d"><span class="num">4.4</span>3D Enright test</a></li>
           <li><a href="#r-sl3d"><span class="num">4.5</span>CFL limit in 3D</a></li>
           <li><a href="#r-multi2d"><span class="num">4.6</span>2D multiple objects</a></li>
-          <li><a href="#r-validation"><span class="num">4.7</span>Validation</a></li>
+          <li><a href="#r-intrinsic"><span class="num">4.7</span>Intrinsic springls</a></li>
+          <li><a href="#r-validation"><span class="num">4.8</span>Validation</a></li>
         </ol>
       </li>
-      <li><a href="#intrinsic"><span class="num">5</span>Intrinsic springls</a>
-        <ol>
-          <li><a href="#i-triangulation"><span class="num">5.1</span>Intrinsic triangulation</a></li>
-          <li><a href="#i-trace"><span class="num">5.2</span>Moving along the surface</a></li>
-          <li><a href="#i-distance"><span class="num">5.3</span>Geodesic distance</a></li>
-          <li><a href="#i-rebuild"><span class="num">5.4</span>Rebuilding the level set</a></li>
-          <li><a href="#i-step"><span class="num">5.5</span>The time step</a></li>
-          <li><a href="#i-flows"><span class="num">5.6</span>Sphere and stone</a></li>
-          <li><a href="#i-results"><span class="num">5.7</span>Results</a></li>
-        </ol>
-      </li>
-      <li><a href="#conclusion"><span class="num">6</span>Conclusion</a></li>
+      <li><a href="#conclusion"><span class="num">5</span>Conclusion</a></li>
       <li><a href="#references">References</a></li>
       <li><a href="#appendix">Appendices</a>
         <ol>
@@ -811,6 +802,230 @@ whose refinement, coarsening and coarse/fine synchronization interpolate each ca
 distances across a boundary. The multi-object springl methods (<code>multi-springls</code>,
 <code>multi-dweave</code> and their <code>adaptive-</code> variants) evolve the same labeled representation, but
 toward their springls instead of with the flow.</p>
+<h3 id="intrinsic"><span class="num">3.14</span>Intrinsic springls on surfaces<a class="anchor" href="#intrinsic" aria-label="Link to this section"></a></h3>
+
+<p>Everything so far moves an interface through a flat domain: a curve in the plane, a surface in a
+box. <strong>Intrinsic springls</strong> (<code>IntrinsicSpringls</code>) move a curve <em>along</em> a curved
+surface given as a triangle mesh: a region painted on a sphere or a lumpy stone, carried by a
+tangent flow. The springls are short segments lying in the surface; the level set lives on the
+mesh's vertexes, one value per vertex, and is rebuilt from the springls after every sub-step, as in
+the semi-Lagrangian DoubleWeave (<a href="#m-sl">§3.11</a>). Nothing is measured in 3D: every length,
+angle, motion and distance is taken <em>along</em> the surface, from the mesh's edge lengths alone.
+The step is the 2D springls step (<a href="#m-step">§3.2</a>) with the same tuning, re-expressed on
+the surface. This subsection explains the four pieces of machinery that make that possible
+(<a href="#i-triangulation">§3.14.1</a>–<a href="#i-rebuild">§3.14.4</a>), then the step; the test flows and
+the results are in <a href="#r-intrinsic">§4.7</a>.</p>
+
+<p>Two things change against the plane. There is no global coordinate system, so a point is a
+face and barycentric coordinates in it, and a vector is a 2D vector in one face's own layout; moving
+a vector from face to face is parallel transport. And straight lines are geodesics, which
+cross edges and bend in 3D, so every "move by <b>v</b>" in the 2D code becomes a trace through
+faces (the discrete exponential map), and every "vector from <b>a</b> to <b>b</b>" a local
+unfolding of the faces between them (the log map). The surface machinery follows Sharp's
+intrinsic triangulations <sup class="ref"><a href="#ref-23">[23]</a></sup><sup class="ref"><a href="#ref-24">[24]</a></sup>.</p>
+
+<h4 id="i-triangulation"><span class="num">3.14.1</span>The intrinsic triangulation<a class="anchor" href="#i-triangulation" aria-label="Link to this section"></a></h4>
+
+<p>An <strong>intrinsic triangulation</strong> (<code>IntrinsicTriangulation</code>) is the connectivity of a
+closed manifold mesh plus <em>one length per edge</em>. A face's angles, area and cotangents follow
+from its three lengths (law of cosines, Heron's formula), and so does its <em>layout</em>: the face drawn
+in the plane with corner 0 at the origin and corner 1 on +x, the coordinate system every point and
+vector in that face is written in. The input mesh's 3D positions are read once, for the lengths,
+and afterwards only to draw the result. <strong>Signposts</strong> add, for each halfedge, its direction at
+its tail vertex as an angle in that vertex's polar frame (the corner angles around the vertex,
+rescaled to a full turn), so a direction at a vertex means the same thing in every face around
+it <sup class="ref"><a href="#ref-23">[23]</a></sup>.</p>
+
+<p>Because only lengths are stored, an edge can be <em>flipped</em> without changing the surface: the two
+faces of a hinge are laid out in one plane from their five edge lengths, and the new diagonal's
+length is read off the layout. The new edge is a geodesic on the original surface that bends where it
+crosses the old one (<a href="#fig-intrinsic-flip">Figure 8</a>). Lawson flips of every edge whose
+cotan weight ½(cot α + cot β) is negative give the <strong>intrinsic Delaunay
+triangulation</strong> <sup class="ref"><a href="#ref-25">[25]</a></sup><sup class="ref"><a href="#ref-26">[26]</a></sup>, which
+exists for every surface, needs no new vertexes, and has nonnegative cotan weights: the
+Laplacian has a maximum principle and fast marching rarely meets an obtuse corner. All the surface
+computations below run on it.</p>
+
+<figure id="fig-intrinsic-flip">
+  <img src="intrinsic-flip.svg" width="1140" height="420" alt="An edge flip on an intrinsic triangulation: (a) a folded hinge of the input mesh whose shared edge ij is not Delaunay, (b) the hinge laid out from edge lengths with the flipped edge kl, (c) the edge kl drawn on the same surface, bending over the old edge" loading="lazy">
+  <figcaption><span class="fig">Figure 8.</span> An intrinsic edge flip. (a) A folded hinge of the input mesh:
+  the two angles opposite ij sum to more than 180°, so ij is not Delaunay. (b) The hinge laid out in
+  the plane from its five edge lengths; the flipped edge kl and its length come from this layout.
+  (c) The same surface with kl in place of ij: a geodesic, straight in each face and bending where it
+  crosses the old edge. The surface is unchanged; only which paths are edges changes. Computed by
+  <code>docs/make_intrinsic_diagrams.py</code>.</figcaption>
+</figure>
+
+<p><strong>Adaptive refinement.</strong> Like the quadtree and octree (<a href="#m-adaptive">§3.10</a>), the
+triangulation is refined only near the springls. A marked face is split 1:4 at its edges' intrinsic
+midpoints (Loop's pattern <sup class="ref"><a href="#ref-27">[27]</a></sup> without smoothing, so the surface never
+moves), and the split is closed <em>red-green</em> <sup class="ref"><a href="#ref-28">[28]</a></sup>: a neighbor with two or three
+split edges splits too, one with a single split edge is bisected, and a bisected face that must
+split later first undoes its bisection, so the mesh stays graded across repeated calls. Then
+Lawson flips restore the intrinsic Delaunay property (except on bisecting edges). Every surface
+point the simulation holds (springl particles and arm vertexes, the Lagrangian reference) is
+relocated through each split and flip by the exact barycentric map of that operation, so it stays at
+the same place on the surface. Faces are marked when they are longer than h<sub>t</sub> (the target edge
+length: the input mesh's mean edge length over 2<sup>maxLevel</sup>, the unit of every springl constant)
+and within the capsule plus a margin (1.5 + 2 h<sub>t</sub>) of a springl, up to <code>maxLevel</code> levels
+below the input mesh (default 3).</p>
+
+<p><strong>Coarsening.</strong> As the object moves on, refined faces are left behind. Before each
+sub-step's refinement, if more than a quarter of the refined area lies beyond the coarsening distance
+(the band plus 1.6 longest input edges) from every springl, the refinement is undone wholesale:
+every held point is mapped to its face and barycentric coordinates on the input mesh (the same
+location), the triangulation is reset to the input mesh and flipped to intrinsic Delaunay, and the
+same refinement is redone around the current springls. Rebuilding from the input mesh, rather than
+merging faces back one by one, keeps the triangulation exactly the one refinement would produce, so
+the mesh's size follows the band instead of the area the object has swept.</p>
+
+<h4 id="i-trace"><span class="num">3.14.2</span>Moving along the surface<a class="anchor" href="#i-trace" aria-label="Link to this section"></a></h4>
+
+<p>A point on the surface (<code>SurfacePoint</code>) is a face and barycentric coordinates. Moving it by a
+tangent vector <b>v</b> (in its face's layout) is the <strong>discrete exponential map</strong>
+<code>Trace(p, v)</code> <sup class="ref"><a href="#ref-23">[23]</a></sup>: walk the straight line in the face until it exits
+through an edge, cross into the neighboring face, re-express the direction in that face's layout
+(the shared edge is the same length in both, so the two layouts agree along it up to a rotation),
+and continue with the remaining length. The path is a geodesic: unfolded into one plane it is a
+straight line (<a href="#fig-intrinsic-trace">Figure 9</a>). The trace also returns the rotation
+between the start and end layouts, which is <strong>parallel transport</strong>: a vector at the end
+can be carried back to the start face.</p>
+
+<figure id="fig-intrinsic-trace">
+  <img src="intrinsic-trace.svg" width="1140" height="470" alt="The discrete exponential map: (a) a straight line traced across a strip of folded faces, with a tangent vector carried along, (b) the same strip unfolded, where the path is straight and the vector constant" loading="lazy">
+  <figcaption><span class="fig">Figure 9.</span> The discrete exponential map. (a) From p, the trace of v
+  crosses a strip of folded faces; the pink vector is carried along by parallel transport. (b) The
+  same faces unfolded into the plane: the path is a straight line, the vector is constant, and the dots
+  are the edge crossings the trace walks. Computed by <code>docs/make_intrinsic_diagrams.py</code>.</figcaption>
+</figure>
+
+<p><strong>Advection</strong> is RK4 on the surface: the four stage points are traces from the start
+point, and each stage velocity is sampled in the face the stage lands in and transported back to the
+start face before the stages are combined; the final displacement is one more trace. The particle
+and both arm vertexes are advected this way, and the springl becomes the similarity transform
+(rotation and uniform scale about its moved particle) of its previous arms that best fits the moved
+vertexes <sup class="ref"><a href="#ref-10">[10]</a></sup>, as in 3D (<a href="#fig-advect3d">Figure 5</a>). The arms are stored
+as vectors in the particle's face layout, rotated by the particle's transport angle as it moves. The
+sub-step is chosen, as in 2D, so the fastest particle moves at most <code>maxStepPixels</code> h<sub>t</sub>.</p>
+
+<p><strong>Local charts.</strong> Relaxation, nearest neighbors, contraction and fill need positions of
+nearby springls relative to each other. A <code>LocalChart</code> unfolds the faces within a few edges of
+a center face into that face's layout (breadth first over shared edges), so nearby points, segments
+and vectors can be compared in one plane, exactly as the 2D code does; the short-range log map
+(<code>LocalLog</code>) refines a chart displacement by tracing until it lands on the target. Charts
+are cached per face and dropped at each refinement and once the springls leave them. Over
+curvature, the unfolding around a vertex depends on which way round it goes; at the scale of a few
+h<sub>t</sub> the difference is second order, and every springl rule acts at that scale.</p>
+
+<h4 id="i-distance"><span class="num">3.14.3</span>Geodesic distance<a class="anchor" href="#i-distance" aria-label="Link to this section"></a></h4>
+
+<p>The unsigned distance U to the springls, the Lagrangian reference's distance field and the
+scenario's placement all use <strong>fast marching on the triangulation</strong> <sup class="ref"><a href="#ref-29">[29]</a></sup><sup class="ref"><a href="#ref-17">[17]</a></sup>
+(<code>FastMarch</code>): Dijkstra's order with the planar-front triangle update, computed in each face's
+layout from edge lengths, with a one-level unfolding across the opposite edge for an obtuse corner.
+It is seeded <em>exactly</em>: every vertex of a face near a springl gets its distance to the springl
+segments measured in a local chart, and the march extends those values outward, stopping beyond the
+band. Near the springls U is therefore exact to the chart's accuracy, and fast marching's first-order
+error only enters where U is clamped anyway.</p>
+
+<h4 id="i-rebuild"><span class="num">3.14.4</span>Rebuilding the level set<a class="anchor" href="#i-rebuild" aria-label="Link to this section"></a></h4>
+
+<p>The level set φ is one value per vertex, linear in each face (a P1 function). After every advection
+sub-step it is rebuilt from the springls alone (<code>IntrinsicSignField</code>), never evolved by a PDE,
+so there is no CFL limit and no numerical diffusion to fight. It is the semi-Lagrangian rule of
+<a href="#m-sl">§3.11</a> on mesh vertexes instead of raster samples, with one addition: a single
+constellation has no dual to close its gaps, and a surface has no border to flood from, so the
+springls' orientation corrects what topology alone gets wrong
+(<a href="#fig-intrinsic-reconstruction">Figure 10</a>):</p>
+
+<ol class="steps">
+  <li><strong>Distance.</strong> U = the geodesic distance to the springl segments (<a href="#i-distance">§3.14.3</a>).
+  Vertexes with U ≤ 1.5 h<sub>t</sub> (the capsule) are walls.</li>
+  <li><strong>Flood.</strong> The exterior floods over mesh edges, around the walls, from the non-wall vertex
+  with the largest U (the far side of the surface). On a closed surface "outside" is just the side that
+  holds the farthest point; if the springls vote that the flooded side is the inside, the roles swap,
+  so an object larger than half the surface works too.</li>
+  <li><strong>Side vote.</strong> Each non-wall region the flood does not reach takes the side its bordering
+  wall vertexes vote for, each by its nearest springl (left of the springl is inside; near an arm's
+  outer end, the pseudo-normal with the neighboring springl). An exterior pocket whose mouth is
+  narrower than two capsules is sealed from the flood by the walls, and the vote returns it to the
+  outside.</li>
+  <li><strong>Upwind sweep.</strong> Wall vertexes, in order of decreasing U, take the sign their one-ring
+  neighbors of larger U vote for, weighted by how much larger. A wall vertex with no larger neighbor
+  (the middle of a feature thinner than two capsules) takes its springl side.</li>
+  <li><strong>Side correction.</strong> Vertexes within 1 h<sub>t</sub> of a springl take its side when it is
+  unambiguous, as the 2D springl correction does: the sweep can sign the tip of a sharp exterior
+  corner from the deeper interior across the springls.</li>
+  <li>φ = sign · min(U, 3.5 h<sub>t</sub>). If no vertex ends up inside (the springls no longer enclose
+  anything), the sub-step keeps the previous φ and counts a leak.</li>
+</ol>
+
+<p>The contour is extracted by <strong>marching triangles</strong> on φ (<code>ExtractIntrinsicContour</code>),
+so every contour point lies on an edge and every segment inside one face. It is then refined as in 2D,
+in one dimension: each crossing slides along its own edge toward the nearest springl particle, and a
+crossing on an edge that a springl arm crosses is placed at the arm's crossing, so the contour runs
+through the springls rather than between the vertexes' linear interpolants.</p>
+
+<figure id="fig-intrinsic-reconstruction">
+  <img src="intrinsic-reconstruction.svg" width="1140" height="1080" alt="One level-set rebuild on a triangle mesh: (a) springls of a puzzle piece with two missing, on a mesh refined near them; (b) the distance U and the wall vertexes; (c) the sign by flood, side vote and upwind sweep; (d) phi and its contour, which bridges the gap" loading="lazy">
+  <figcaption><span class="fig">Figure 10.</span> One level-set rebuild on a refined triangle mesh. (a) The
+  springls of a puzzle piece after a sub-step, evenly spaced along its outline, two missing at the top tab; the input faces near them
+  are split 1:4 twice, closed red-green. (b) U, the distance to the springls, and the wall vertexes
+  (U ≤ 1.5 h<sub>t</sub>), which close over the gap. (c) The sign (faces colored by their vertexes'
+  majority class): the exterior flood, which reaches into both sockets; the interior, unreached and
+  voted inside by its bordering springls; the walls swept upwind; and the vertexes the side correction
+  fixed at sharp corners. (d) φ and its marching-triangles contour, refined onto the springls, which bridges the gap,
+  so fill seeds new springls there in the same sub-step. Computed by
+  <code>docs/make_intrinsic_diagrams.py</code> on a flat patch, where geodesic and Euclidean distances
+  agree.</figcaption>
+</figure>
+
+<h4 id="i-step"><span class="num">3.14.5</span>The time step<a class="anchor" href="#i-step" aria-label="Link to this section"></a></h4>
+
+<p>The step order and tuning are those of the 2D springls (<a href="#m-step">§3.2</a>), with the level-set
+evolution replaced by the rebuild and every length in h<sub>t</sub>. Relaxation, contraction (particles
+too far from the contour, arms too short or too long) and fill (contour segments with no springl
+near their midpoint get one: particle at the midpoint, arms to the segment's crossings) are the 2D
+rules, evaluated in local charts. One tuning value differs: the fastest particle moves at most
+<strong>1 h<sub>t</sub></strong> per advection sub-step (<code>IntrinsicSpringls::kDefaultMaxStep</code>), not the 2D
+⅓. The 2D ⅓ is the CFL limit of the upwind level-set PDE; the rebuild here follows the springls
+wherever they went, so only the springls' own integration limits the step. On the loop test a step of
+1 h<sub>t</sub> takes a third of the sub-steps of ⅓ and comes back as close (<a href="#r-intrinsic">§4.7</a>).
+The speed that sets Δt is bounded over the whole sub-step, by the larger |weight| of the schedule at
+its two ends, so a sub-step that starts as the flow slows to its reversal cannot run past it at the
+speed it started with.</p>
+
+<pre class="pseudo"><code><span class="k">procedure</span> <span class="f">IntrinsicSpringls::step</span>()
+  <span class="k">for</span> sub-step = 1 … advectionSubstepsPerStep <span class="k">do</span>
+    Δt ← maxStepPixels · h<sub>t</sub> / max speed over [t, t + Δt]   <span class="c">// 1 h<sub>t</sub>; capped by the schedule</span>
+    <span class="k">for each</span> springl: RK4 on particle and arm vertexes by Trace, stage velocities transported back;
+                   arms ← best similarity fit to the moved vertexes
+    <span class="k">if</span> over ¼ of the refined area is beyond the coarsening distance <span class="k">then</span>
+      move every point onto the input mesh;  reset to it;  flip to Delaunay     <span class="c">// coarsening</span>
+    <span class="k">repeat</span>                                            <span class="c">// at most maxLevel + 1 passes</span>
+      U ← FastMarch(exact chart seeds at the springl segments)
+      split 1:4 (red-green) faces longer than h<sub>t</sub> within (1.5 + 2) h<sub>t</sub> of a springl;  flip to Delaunay
+      relocate every held surface point
+    <span class="k">until</span> nothing was split
+    φ ← SignField(U, springl sides)                   <span class="c">// §3.14.4; kept as is if it leaked</span>
+    extract contour (marching triangles);  slide crossings toward the springls
+    relax;  contract;  update nearest neighbors
+    <span class="k">repeat</span> fill; relax <span class="k">until</span> nothing filled (≤ 16 passes)
+    extract and refine the contour again</code></pre>
+
+<p><strong>Parallel implementation.</strong> Every per-springl and per-vertex loop of a sub-step runs on
+OpenMP threads: the RK4 traces, the charts of the springls' faces, relaxation, contraction, fill
+candidates, nearest neighbors, the per-face springl distances that seed fast marching, the sign
+field's wall sides and side correction, contour refinement and the reference's advance. Charts are
+cached per face and built ahead of each parallel loop, with a per-thread fallback, so the threads
+share nothing they write. Fast marching itself is serial, on a decrease-key binary heap over vertex
+ids (<code>DenseMutableHeap</code>, one entry per vertex, re-prioritized in place). Charts are flat
+arrays with open-addressed face lookup and rotations kept as unit complex numbers (no trigonometry
+per transported vector). Over the first 300 steps of the loop test these make the sphere 2.5× and the
+stone 2.4× faster on 12 threads than the serial code (130.6 s → 51.3 s, 118.1 s → 49.1 s). Results
+then depend slightly on the thread count, through the order of floating-point sums; one thread is
+deterministic.</p>
+
 </section>
 
 <!-- ============================================================ 4 -->
@@ -866,7 +1081,7 @@ Eulerian defaults).</p>
     <figcaption>Semi-Lagrangian DoubleWeave <a href="videos/semi-lagrangian-doubleweave.mp4">mp4</a></figcaption>
   </figure>
 </div>
-<p class="gallery-caption"><span class="fig">Figure 8.</span> 2D Enright test, 64² base grid, T = 8. Posters show t = 1.73.</p>
+<p class="gallery-caption"><span class="fig">Figure 11.</span> 2D Enright test, 64² base grid, T = 8. Posters show t = 1.73.</p>
 
 <div class="table-wrap"><table>
 <caption><span class="fig">Table 2.</span> 2D errors at t = T (shape errors in domain units; the circle has radius 0.15).</caption>
@@ -941,7 +1156,7 @@ error and a lower max shape error.</p>
     <figcaption>Semi-Lagrangian DoubleWeave 3D <a href="videos/3d-semi-lagrangian-doubleweave.mp4">mp4</a></figcaption>
   </figure>
 </div>
-<p class="gallery-caption"><span class="fig">Figure 9.</span> 3D Enright test, T = 3, quad springls. Posters show t = T/2, when the sphere is stretched into a thin, curled disk.</p>
+<p class="gallery-caption"><span class="fig">Figure 12.</span> 3D Enright test, T = 3, quad springls. Posters show t = T/2, when the sphere is stretched into a thin, curled disk.</p>
 
 <div class="table-wrap"><table>
 <caption><span class="fig">Table 5.</span> 3D errors at t = T (shape errors in domain units; the sphere has radius 0.15).</caption>
@@ -1024,7 +1239,7 @@ enright-2d-adaptive-multi-springls --no-gui -j 4 -d 4 --frames &lt;dir&gt;</code
     <figcaption>Adaptive Multi-Object Springls <a href="videos/adaptive-multi-springls.mp4">mp4</a></figcaption>
   </figure>
 </div>
-<p class="gallery-caption"><span class="fig">Figure 10.</span> 2D multi-object Enright test, four
+<p class="gallery-caption"><span class="fig">Figure 13.</span> 2D multi-object Enright test, four
 regions, T = 8; uniform 256², adaptive 32² at depth 4. Posters show t = 1.73.</p>
 
 <div class="table-wrap"><table>
@@ -1064,245 +1279,12 @@ pixel) the adaptive multi-object springls took 801 sub-steps instead of 1,267 an
 with mean and max shape errors of 0.0094 and 0.0374, against −7.2%, 0.0033 and 0.0222 now; the other
 three methods were already held by their CFL limit and changed by less than 0.3% area.</p>
 
-<h3 id="r-validation"><span class="num">4.7</span>Validation against the reference implementation<a class="anchor" href="#r-validation" aria-label="Link to this section"></a></h3>
+<h3 id="r-intrinsic"><span class="num">4.7</span>Intrinsic springls on surfaces<a class="anchor" href="#r-intrinsic" aria-label="Link to this section"></a></h3>
 
-<p>The 2D code is a port of the springls in wedge, with Eigen in place of header-only-club. With
-matching inputs the level sets agree with wedge to float rounding, and Enright errors match its
-reference runs, e.g. springls at 96², T = 4: area error −5.13% (wedge −5.14%); adaptive springls
-at 64², T = 2, depth 4: −0.238% (wedge −0.238%). Like the original, the initial contour smoothing
-leaves the first vertex of each closed curve unsmoothed; the uniform marching squares scans
-column-major so that vertex matches the reference the default tuning was chosen with. These
-comparisons used a velocity field sampled on the grid and the original adaptive refinement; the
-Enright examples now use the analytic velocity, and the adaptive grids keep a band around the
-springls, so current numbers differ from wedge's.</p>
-</section>
+<p>The intrinsic springls (<a href="#intrinsic">§3.14</a>) are tested by carrying a region once around a
+surface and back.</p>
 
-<!-- ============================================================ 5 -->
-<section>
-<h2 id="intrinsic"><span class="num">5</span>Intrinsic springls on surfaces<a class="anchor" href="#intrinsic" aria-label="Link to this section"></a></h2>
-
-<p>Everything so far moves an interface through a flat domain: a curve in the plane, a surface in a
-box. <strong>Intrinsic springls</strong> (<code>IntrinsicSpringls</code>) move a curve <em>along</em> a curved
-surface given as a triangle mesh: a region painted on a sphere or a lumpy stone, carried by a
-tangent flow. The springls are short segments lying in the surface; the level set lives on the
-mesh's vertexes, one value per vertex, and is rebuilt from the springls after every sub-step, as in
-the semi-Lagrangian DoubleWeave (<a href="#m-sl">§3.11</a>). Nothing is measured in 3D: every length,
-angle, motion and distance is taken <em>along</em> the surface, from the mesh's edge lengths alone.
-The step is the 2D springls step (<a href="#m-step">§3.2</a>) with the same tuning, re-expressed on
-the surface. This section explains the four pieces of machinery that make that possible
-(<a href="#i-triangulation">§5.1</a>–<a href="#i-rebuild">§5.4</a>), then the step, the test flows and the results.</p>
-
-<p>Two things change against the plane. There is no global coordinate system, so a point is a
-face and barycentric coordinates in it, and a vector is a 2D vector in one face's own layout; moving
-a vector from face to face is parallel transport. And straight lines are geodesics, which
-cross edges and bend in 3D, so every "move by <b>v</b>" in the 2D code becomes a trace through
-faces (the discrete exponential map), and every "vector from <b>a</b> to <b>b</b>" a local
-unfolding of the faces between them (the log map). The surface machinery follows Sharp's
-intrinsic triangulations <sup class="ref"><a href="#ref-23">[23]</a></sup><sup class="ref"><a href="#ref-24">[24]</a></sup>.</p>
-
-<h3 id="i-triangulation"><span class="num">5.1</span>The intrinsic triangulation<a class="anchor" href="#i-triangulation" aria-label="Link to this section"></a></h3>
-
-<p>An <strong>intrinsic triangulation</strong> (<code>IntrinsicTriangulation</code>) is the connectivity of a
-closed manifold mesh plus <em>one length per edge</em>. A face's angles, area and cotangents follow
-from its three lengths (law of cosines, Heron's formula), and so does its <em>layout</em>: the face drawn
-in the plane with corner 0 at the origin and corner 1 on +x, the coordinate system every point and
-vector in that face is written in. The input mesh's 3D positions are read once, for the lengths,
-and afterwards only to draw the result. <strong>Signposts</strong> add, for each halfedge, its direction at
-its tail vertex as an angle in that vertex's polar frame (the corner angles around the vertex,
-rescaled to a full turn), so a direction at a vertex means the same thing in every face around
-it <sup class="ref"><a href="#ref-23">[23]</a></sup>.</p>
-
-<p>Because only lengths are stored, an edge can be <em>flipped</em> without changing the surface: the two
-faces of a hinge are laid out in one plane from their five edge lengths, and the new diagonal's
-length is read off the layout. The new edge is a geodesic on the original surface that bends where it
-crosses the old one (<a href="#fig-intrinsic-flip">Figure 11</a>). Lawson flips of every edge whose
-cotan weight ½(cot α + cot β) is negative give the <strong>intrinsic Delaunay
-triangulation</strong> <sup class="ref"><a href="#ref-25">[25]</a></sup><sup class="ref"><a href="#ref-26">[26]</a></sup>, which
-exists for every surface, needs no new vertexes, and has nonnegative cotan weights: the
-Laplacian has a maximum principle and fast marching rarely meets an obtuse corner. All the surface
-computations below run on it.</p>
-
-<figure id="fig-intrinsic-flip">
-  <img src="intrinsic-flip.svg" width="1140" height="420" alt="An edge flip on an intrinsic triangulation: (a) a folded hinge of the input mesh whose shared edge ij is not Delaunay, (b) the hinge laid out from edge lengths with the flipped edge kl, (c) the edge kl drawn on the same surface, bending over the old edge" loading="lazy">
-  <figcaption><span class="fig">Figure 11.</span> An intrinsic edge flip. (a) A folded hinge of the input mesh:
-  the two angles opposite ij sum to more than 180°, so ij is not Delaunay. (b) The hinge laid out in
-  the plane from its five edge lengths; the flipped edge kl and its length come from this layout.
-  (c) The same surface with kl in place of ij: a geodesic, straight in each face and bending where it
-  crosses the old edge. The surface is unchanged; only which paths are edges changes. Computed by
-  <code>docs/make_intrinsic_diagrams.py</code>.</figcaption>
-</figure>
-
-<p><strong>Adaptive refinement.</strong> Like the quadtree and octree (<a href="#m-adaptive">§3.10</a>), the
-triangulation is refined only near the springls. A marked face is split 1:4 at its edges' intrinsic
-midpoints (Loop's pattern <sup class="ref"><a href="#ref-27">[27]</a></sup> without smoothing, so the surface never
-moves), and the split is closed <em>red-green</em> <sup class="ref"><a href="#ref-28">[28]</a></sup>: a neighbor with two or three
-split edges splits too, one with a single split edge is bisected, and a bisected face that must
-split later first undoes its bisection, so the mesh stays graded across repeated calls. Then
-Lawson flips restore the intrinsic Delaunay property (except on bisecting edges). Every surface
-point the simulation holds (springl particles and arm vertexes, the Lagrangian reference) is
-relocated through each split and flip by the exact barycentric map of that operation, so it stays at
-the same place on the surface. Faces are marked when they are longer than h<sub>t</sub> (the target edge
-length: the input mesh's mean edge length over 2<sup>maxLevel</sup>, the unit of every springl constant)
-and within the capsule plus a margin (1.5 + 2 h<sub>t</sub>) of a springl, up to <code>maxLevel</code> levels
-below the input mesh (default 3).</p>
-
-<p><strong>Coarsening.</strong> As the object moves on, refined faces are left behind. Before each
-sub-step's refinement, if more than a quarter of the refined area lies beyond the coarsening distance
-(the band plus 1.6 longest input edges) from every springl, the refinement is undone wholesale:
-every held point is mapped to its face and barycentric coordinates on the input mesh (the same
-location), the triangulation is reset to the input mesh and flipped to intrinsic Delaunay, and the
-same refinement is redone around the current springls. Rebuilding from the input mesh, rather than
-merging faces back one by one, keeps the triangulation exactly the one refinement would produce, so
-the mesh's size follows the band instead of the area the object has swept.</p>
-
-<h3 id="i-trace"><span class="num">5.2</span>Moving along the surface<a class="anchor" href="#i-trace" aria-label="Link to this section"></a></h3>
-
-<p>A point on the surface (<code>SurfacePoint</code>) is a face and barycentric coordinates. Moving it by a
-tangent vector <b>v</b> (in its face's layout) is the <strong>discrete exponential map</strong>
-<code>Trace(p, v)</code> <sup class="ref"><a href="#ref-23">[23]</a></sup>: walk the straight line in the face until it exits
-through an edge, cross into the neighboring face, re-express the direction in that face's layout
-(the shared edge is the same length in both, so the two layouts agree along it up to a rotation),
-and continue with the remaining length. The path is a geodesic: unfolded into one plane it is a
-straight line (<a href="#fig-intrinsic-trace">Figure 12</a>). The trace also returns the rotation
-between the start and end layouts, which is <strong>parallel transport</strong>: a vector at the end
-can be carried back to the start face.</p>
-
-<figure id="fig-intrinsic-trace">
-  <img src="intrinsic-trace.svg" width="1140" height="470" alt="The discrete exponential map: (a) a straight line traced across a strip of folded faces, with a tangent vector carried along, (b) the same strip unfolded, where the path is straight and the vector constant" loading="lazy">
-  <figcaption><span class="fig">Figure 12.</span> The discrete exponential map. (a) From p, the trace of v
-  crosses a strip of folded faces; the pink vector is carried along by parallel transport. (b) The
-  same faces unfolded into the plane: the path is a straight line, the vector is constant, and the dots
-  are the edge crossings the trace walks. Computed by <code>docs/make_intrinsic_diagrams.py</code>.</figcaption>
-</figure>
-
-<p><strong>Advection</strong> is RK4 on the surface: the four stage points are traces from the start
-point, and each stage velocity is sampled in the face the stage lands in and transported back to the
-start face before the stages are combined; the final displacement is one more trace. The particle
-and both arm vertexes are advected this way, and the springl becomes the similarity transform
-(rotation and uniform scale about its moved particle) of its previous arms that best fits the moved
-vertexes <sup class="ref"><a href="#ref-10">[10]</a></sup>, as in 3D (<a href="#fig-advect3d">Figure 5</a>). The arms are stored
-as vectors in the particle's face layout, rotated by the particle's transport angle as it moves. The
-sub-step is chosen, as in 2D, so the fastest particle moves at most <code>maxStepPixels</code> h<sub>t</sub>.</p>
-
-<p><strong>Local charts.</strong> Relaxation, nearest neighbors, contraction and fill need positions of
-nearby springls relative to each other. A <code>LocalChart</code> unfolds the faces within a few edges of
-a center face into that face's layout (breadth first over shared edges), so nearby points, segments
-and vectors can be compared in one plane, exactly as the 2D code does; the short-range log map
-(<code>LocalLog</code>) refines a chart displacement by tracing until it lands on the target. Charts
-are cached per face and dropped at each refinement and once the springls leave them. Over
-curvature, the unfolding around a vertex depends on which way round it goes; at the scale of a few
-h<sub>t</sub> the difference is second order, and every springl rule acts at that scale.</p>
-
-<h3 id="i-distance"><span class="num">5.3</span>Geodesic distance<a class="anchor" href="#i-distance" aria-label="Link to this section"></a></h3>
-
-<p>The unsigned distance U to the springls, the Lagrangian reference's distance field and the
-scenario's placement all use <strong>fast marching on the triangulation</strong> <sup class="ref"><a href="#ref-29">[29]</a></sup><sup class="ref"><a href="#ref-17">[17]</a></sup>
-(<code>FastMarch</code>): Dijkstra's order with the planar-front triangle update, computed in each face's
-layout from edge lengths, with a one-level unfolding across the opposite edge for an obtuse corner.
-It is seeded <em>exactly</em>: every vertex of a face near a springl gets its distance to the springl
-segments measured in a local chart, and the march extends those values outward, stopping beyond the
-band. Near the springls U is therefore exact to the chart's accuracy, and fast marching's first-order
-error only enters where U is clamped anyway.</p>
-
-<h3 id="i-rebuild"><span class="num">5.4</span>Rebuilding the level set<a class="anchor" href="#i-rebuild" aria-label="Link to this section"></a></h3>
-
-<p>The level set φ is one value per vertex, linear in each face (a P1 function). After every advection
-sub-step it is rebuilt from the springls alone (<code>IntrinsicSignField</code>), never evolved by a PDE,
-so there is no CFL limit and no numerical diffusion to fight. It is the semi-Lagrangian rule of
-<a href="#m-sl">§3.11</a> on mesh vertexes instead of raster samples, with one addition: a single
-constellation has no dual to close its gaps, and a surface has no border to flood from, so the
-springls' orientation corrects what topology alone gets wrong
-(<a href="#fig-intrinsic-reconstruction">Figure 13</a>):</p>
-
-<ol class="steps">
-  <li><strong>Distance.</strong> U = the geodesic distance to the springl segments (<a href="#i-distance">§5.3</a>).
-  Vertexes with U ≤ 1.5 h<sub>t</sub> (the capsule) are walls.</li>
-  <li><strong>Flood.</strong> The exterior floods over mesh edges, around the walls, from the non-wall vertex
-  with the largest U (the far side of the surface). On a closed surface "outside" is just the side that
-  holds the farthest point; if the springls vote that the flooded side is the inside, the roles swap,
-  so an object larger than half the surface works too.</li>
-  <li><strong>Side vote.</strong> Each non-wall region the flood does not reach takes the side its bordering
-  wall vertexes vote for, each by its nearest springl (left of the springl is inside; near an arm's
-  outer end, the pseudo-normal with the neighboring springl). An exterior pocket whose mouth is
-  narrower than two capsules is sealed from the flood by the walls, and the vote returns it to the
-  outside.</li>
-  <li><strong>Upwind sweep.</strong> Wall vertexes, in order of decreasing U, take the sign their one-ring
-  neighbors of larger U vote for, weighted by how much larger. A wall vertex with no larger neighbor
-  (the middle of a feature thinner than two capsules) takes its springl side.</li>
-  <li><strong>Side correction.</strong> Vertexes within 1 h<sub>t</sub> of a springl take its side when it is
-  unambiguous, as the 2D springl correction does: the sweep can sign the tip of a sharp exterior
-  corner from the deeper interior across the springls.</li>
-  <li>φ = sign · min(U, 3.5 h<sub>t</sub>). If no vertex ends up inside (the springls no longer enclose
-  anything), the sub-step keeps the previous φ and counts a leak.</li>
-</ol>
-
-<p>The contour is extracted by <strong>marching triangles</strong> on φ (<code>ExtractIntrinsicContour</code>),
-so every contour point lies on an edge and every segment inside one face. It is then refined as in 2D,
-in one dimension: each crossing slides along its own edge toward the nearest springl particle, and a
-crossing on an edge that a springl arm crosses is placed at the arm's crossing, so the contour runs
-through the springls rather than between the vertexes' linear interpolants.</p>
-
-<figure id="fig-intrinsic-reconstruction">
-  <img src="intrinsic-reconstruction.svg" width="1140" height="1080" alt="One level-set rebuild on a triangle mesh: (a) springls of a puzzle piece with two missing, on a mesh refined near them; (b) the distance U and the wall vertexes; (c) the sign by flood, side vote and upwind sweep; (d) phi and its contour, which bridges the gap" loading="lazy">
-  <figcaption><span class="fig">Figure 13.</span> One level-set rebuild on a refined triangle mesh. (a) The
-  springls of a puzzle piece after a sub-step, evenly spaced along its outline, two missing at the top tab; the input faces near them
-  are split 1:4 twice, closed red-green. (b) U, the distance to the springls, and the wall vertexes
-  (U ≤ 1.5 h<sub>t</sub>), which close over the gap. (c) The sign (faces colored by their vertexes'
-  majority class): the exterior flood, which reaches into both sockets; the interior, unreached and
-  voted inside by its bordering springls; the walls swept upwind; and the vertexes the side correction
-  fixed at sharp corners. (d) φ and its marching-triangles contour, refined onto the springls, which bridges the gap,
-  so fill seeds new springls there in the same sub-step. Computed by
-  <code>docs/make_intrinsic_diagrams.py</code> on a flat patch, where geodesic and Euclidean distances
-  agree.</figcaption>
-</figure>
-
-<h3 id="i-step"><span class="num">5.5</span>The time step<a class="anchor" href="#i-step" aria-label="Link to this section"></a></h3>
-
-<p>The step order and tuning are those of the 2D springls (<a href="#m-step">§3.2</a>), with the level-set
-evolution replaced by the rebuild and every length in h<sub>t</sub>. Relaxation, contraction (particles
-too far from the contour, arms too short or too long) and fill (contour segments with no springl
-near their midpoint get one: particle at the midpoint, arms to the segment's crossings) are the 2D
-rules, evaluated in local charts. One tuning value differs: the fastest particle moves at most
-<strong>1 h<sub>t</sub></strong> per advection sub-step (<code>IntrinsicSpringls::kDefaultMaxStep</code>), not the 2D
-⅓. The 2D ⅓ is the CFL limit of the upwind level-set PDE; the rebuild here follows the springls
-wherever they went, so only the springls' own integration limits the step. On the loop test a step of
-1 h<sub>t</sub> takes a third of the sub-steps of ⅓ and comes back as close (<a href="#i-results">§5.7</a>).
-The speed that sets Δt is bounded over the whole sub-step, by the larger |weight| of the schedule at
-its two ends, so a sub-step that starts as the flow slows to its reversal cannot run past it at the
-speed it started with.</p>
-
-<pre class="pseudo"><code><span class="k">procedure</span> <span class="f">IntrinsicSpringls::step</span>()
-  <span class="k">for</span> sub-step = 1 … advectionSubstepsPerStep <span class="k">do</span>
-    Δt ← maxStepPixels · h<sub>t</sub> / max speed over [t, t + Δt]   <span class="c">// 1 h<sub>t</sub>; capped by the schedule</span>
-    <span class="k">for each</span> springl: RK4 on particle and arm vertexes by Trace, stage velocities transported back;
-                   arms ← best similarity fit to the moved vertexes
-    <span class="k">if</span> over ¼ of the refined area is beyond the coarsening distance <span class="k">then</span>
-      move every point onto the input mesh;  reset to it;  flip to Delaunay     <span class="c">// coarsening</span>
-    <span class="k">repeat</span>                                            <span class="c">// at most maxLevel + 1 passes</span>
-      U ← FastMarch(exact chart seeds at the springl segments)
-      split 1:4 (red-green) faces longer than h<sub>t</sub> within (1.5 + 2) h<sub>t</sub> of a springl;  flip to Delaunay
-      relocate every held surface point
-    <span class="k">until</span> nothing was split
-    φ ← SignField(U, springl sides)                   <span class="c">// §5.4; kept as is if it leaked</span>
-    extract contour (marching triangles);  slide crossings toward the springls
-    relax;  contract;  update nearest neighbors
-    <span class="k">repeat</span> fill; relax <span class="k">until</span> nothing filled (≤ 16 passes)
-    extract and refine the contour again</code></pre>
-
-<p><strong>Parallel implementation.</strong> Every per-springl and per-vertex loop of a sub-step runs on
-OpenMP threads: the RK4 traces, the charts of the springls' faces, relaxation, contraction, fill
-candidates, nearest neighbors, the per-face springl distances that seed fast marching, the sign
-field's wall sides and side correction, contour refinement and the reference's advance. Charts are
-cached per face and built ahead of each parallel loop, with a per-thread fallback, so the threads
-share nothing they write. Fast marching itself is serial, on a decrease-key binary heap over vertex
-ids (<code>DenseMutableHeap</code>, one entry per vertex, re-prioritized in place). Charts are flat
-arrays with open-addressed face lookup and rotations kept as unit complex numbers (no trigonometry
-per transported vector). Over the first 300 steps of the loop test these make the sphere 2.5× and the
-stone 2.4× faster on 12 threads than the serial code (130.6 s → 51.3 s, 118.1 s → 49.1 s). Results
-then depend slightly on the thread count, through the order of floating-point sums; one thread is
-deterministic.</p>
-
-<h3 id="i-flows"><span class="num">5.6</span>Test flows: the sphere and the stone<a class="anchor" href="#i-flows" aria-label="Link to this section"></a></h3>
+<h4 id="i-flows"><span class="num">4.7.1</span>Test flows: the sphere and the stone<a class="anchor" href="#i-flows" aria-label="Link to this section"></a></h4>
 
 <p>The <strong>loop test</strong> (<code>LoopScenario</code>) carries one object, a jigsaw puzzle piece (a
 square body of side 2r with round tabs on two sides and matching sockets on the other two: convex and
@@ -1346,7 +1328,7 @@ the tracing throughout the loop.</p>
 <p>The flow is defined on the input mesh, so refinement does not change it, and the arrows in the
 videos (spaced in input edge lengths, they flip at T/2) show it over the whole surface.</p>
 
-<h3 id="i-results"><span class="num">5.7</span>Results<a class="anchor" href="#i-results" aria-label="Link to this section"></a></h3>
+<h4 id="i-results"><span class="num">4.7.2</span>The loop test<a class="anchor" href="#i-results" aria-label="Link to this section"></a></h4>
 
 <p>Both runs use the toybox defaults: the puzzle piece, <code>--max-level 3</code>, the camera following
 the object and looking at it along the surface normal. The videos and the metrics come from two
@@ -1401,11 +1383,22 @@ parallel code each run is about 8× faster than before. Coarsening keeps the mes
 the frame-export run on the sphere peaked at 0.43 GB (1.02 GB without coarsening, measured with the
 earlier schedule).</p>
 
+<h3 id="r-validation"><span class="num">4.8</span>Validation against the reference implementation<a class="anchor" href="#r-validation" aria-label="Link to this section"></a></h3>
+
+<p>The 2D code is a port of the springls in wedge, with Eigen in place of header-only-club. With
+matching inputs the level sets agree with wedge to float rounding, and Enright errors match its
+reference runs, e.g. springls at 96², T = 4: area error −5.13% (wedge −5.14%); adaptive springls
+at 64², T = 2, depth 4: −0.238% (wedge −0.238%). Like the original, the initial contour smoothing
+leaves the first vertex of each closed curve unsmoothed; the uniform marching squares scans
+column-major so that vertex matches the reference the default tuning was chosen with. These
+comparisons used a velocity field sampled on the grid and the original adaptive refinement; the
+Enright examples now use the analytic velocity, and the adaptive grids keep a band around the
+springls, so current numbers differ from wedge's.</p>
 </section>
 
-<!-- ============================================================ 6 -->
+<!-- ============================================================ 5 -->
 <section>
-<h2 id="conclusion"><span class="num">6</span>Conclusion<a class="anchor" href="#conclusion" aria-label="Link to this section"></a></h2>
+<h2 id="conclusion"><span class="num">5</span>Conclusion<a class="anchor" href="#conclusion" aria-label="Link to this section"></a></h2>
 
 <p><strong>Level sets alone.</strong> The basic level set method and MOGAC are the Eulerian baselines,
 running on the same level-set code without springls (<a href="#m-levelset-methods">§3.13</a>). They
@@ -1440,7 +1433,7 @@ Intrinsic springls take the semi-Lagrangian rebuild onto curved surfaces: on an 
 triangulation, refined only near the springls, springls move by the exponential map and the level
 set is rebuilt per vertex from geodesic distances and the springls' orientation, so a region goes
 around a sphere or a lumpy stone and comes back with the 2D step and tuning, at three times the 2D
-sub-step, in parallel on OpenMP threads (<a href="#intrinsic">§5</a>).</p>
+sub-step, in parallel on OpenMP threads (<a href="#intrinsic">§3.14</a>, <a href="#r-intrinsic">§4.7</a>).</p>
 
 <p><strong>Limitations.</strong> The semi-Lagrangian rule fuses fronts that come closer than two
 capsules (intended for colliding fronts, but it means topology cannot be preserved), and features
