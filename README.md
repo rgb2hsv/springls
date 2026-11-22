@@ -188,8 +188,7 @@ Mouse: left drag orbits, Shift + left drag or middle drag pans, right drag or th
 Large meshes take a while: a 600k-triangle mesh needs about 30 s to initialize and 90 s per step on a
 20-thread machine. Work runs on a worker thread, so the window stays responsive.
 
-## Sphere scenario
-
+## Surface Transport
 | Sphere (rotation) | Stone (Hodge flow) |
 |:---:|:---:|
 | [![Intrinsic springls: a puzzle piece carried around the icosphere](docs/videos/sphere-surf-springls.jpg)](docs/videos/sphere-surf-springls.mp4) | [![Intrinsic springls: a puzzle piece carried around the stone by the divergence-free Hodge flow](docs/videos/stone-surf-springls.jpg)](docs/videos/stone-surf-springls.mp4) |
