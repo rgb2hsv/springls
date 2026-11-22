@@ -13,6 +13,9 @@
 [submodule "external/eigen"]
 	path = external/eigen
 	url = https://gitlab.com/libeigen/eigen.git
+[submodule "external/kdtree-cpp"]
+	path = external/kdtree-cpp
+	url = https://github.com/rgb2hsv/kdtree-cpp.git
 [submodule "external/tinyvdb"]
 	path = external/tinyvdb
 	url = https://github.com/syoyo/tinyvdb.git

@@ -375,6 +375,9 @@ figcaption {
   gap: 16px;
   margin: 8px 0 28px;
 }
+/* Four clips as a 2 x 2 grid (one column on narrow screens). */
+.gallery.pairs { grid-template-columns: repeat(2, 1fr); }
+@media (max-width: 560px) { .gallery.pairs { grid-template-columns: 1fr; } }
 .clip {
   margin: 0;
   background: var(--bg-elev);
@@ -397,6 +400,7 @@ figcaption {
   gap: 8px;
 }
 .clip figcaption a { font-weight: 400; font-size: 12.5px; color: var(--text-muted); }
+.clip.square video { aspect-ratio: 1 / 1; }
 .clip.featured { border-color: rgba(63, 185, 80, 0.4); }
 
 .callout {

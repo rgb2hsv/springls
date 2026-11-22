@@ -1,31 +1,43 @@
 cmake_minimum_required(VERSION 3.20)
+# Default to Release before project(), which otherwise sets Debug for MSVC-like compilers.
+get_property(SPRINGLS_MULTI_CONFIG GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
+if(NOT CMAKE_BUILD_TYPE AND NOT SPRINGLS_MULTI_CONFIG)
+	set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type")
+endif()
 project(springls LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
-	set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
-endif()
 
 option(SPRINGLS_USE_OPENMP "Parallelize with OpenMP when available" ON)
 option(SPRINGLS_BUILD_GUI "Build the GUI (GLFW + OpenGL 3 + Dear ImGui + NanoVG)" ON)
-option(SPRINGLS_BUILD_EXAMPLES "Build the example programs" ON)
+option(SPRINGLS_BUILD_EXAMPLES "Build toybox and one program per implemented configuration (enright-2d-springls, ..., mesh-3d-dweave)" ON)
+option(SPRINGLS_BUILD_TESTS "Build the unit tests" ON)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
 	add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-Wall;-Wextra;-Wno-unused-parameter>")
 endif()
 
 # ------------------------------------------------------------------------------------------------
-# Core library: spring level sets, doubleweave, adaptive variants. Depends on Eigen, cereal, happly and tinyvdb (+ OpenMP).
+# Core library: spring level sets, DoubleWeave, adaptive variants. Depends only on Eigen (+ OpenMP).
 # ------------------------------------------------------------------------------------------------
 # Eigen (header only, from the submodule at 3.4.0); no installed copy is used.
 set(SPRINGLS_EIGEN_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/eigen)
 if(NOT EXISTS ${SPRINGLS_EIGEN_DIR}/Eigen/Core)
 	message(FATAL_ERROR "Eigen not found in external/eigen. Run 'git submodule update --init external/eigen'.")
 endif()
-# tinyvdb (from the submodule) writes and reads the checkpointed level sets as OpenVDB files. Only its I/O library
+# kdtree-cpp (header only, from the submodule): its BoxTree locates the nearest triangle in MeshDistance3D. Only its
+# headers are used; its own CMake project (tests that fetch GoogleTest) is not added.
+set(SPRINGLS_KDTREE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/kdtree-cpp/src)
+if(NOT EXISTS ${SPRINGLS_KDTREE_DIR}/boxtree.hpp)
+	message(FATAL_ERROR "kdtree-cpp not found in external/kdtree-cpp. Run 'git submodule update --init external/kdtree-cpp'.")
+endif()
+if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/external/happly/happly.h)
+	message(FATAL_ERROR "happly not found in external/happly. Run 'git submodule update --init external/happly'.")
+endif()
+# tinyvdb (from the submodule) writes and reads the adaptive level set as OpenVDB files. Only its I/O library
 # (tinyvdb) and the sparse-to-tree builder in tinyvdb_mesh_ops are used; examples, tests, the GPU backend and
 # its own submodules are not needed.
 set(SPRINGLS_TINYVDB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/tinyvdb)
@@ -48,23 +60,22 @@ add_subdirectory(${SPRINGLS_TINYVDB_DIR} ${CMAKE_BINARY_DIR}/tinyvdb EXCLUDE_FRO
 add_library(springls_eigen INTERFACE)
 target_include_directories(springls_eigen SYSTEM INTERFACE ${SPRINGLS_EIGEN_DIR})
 
-file(GLOB SPRINGLS_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/springls/*.cpp)
+file(GLOB SPRINGLS_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/*/*.cpp)
 add_library(springls STATIC ${SPRINGLS_SOURCES})
 target_include_directories(springls PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 # cereal (header only, from the submodule) writes checkpoints; only the library's sources use it.
 target_include_directories(springls PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/external/cereal/include)
-# happly (header only, from the submodule) reads and writes PLY meshes; only the library's sources use it.
-set(SPRINGLS_HAPPLY_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/happly)
-if(NOT EXISTS ${SPRINGLS_HAPPLY_DIR}/happly.h)
-	message(FATAL_ERROR "happly not found in external/happly. Run 'git submodule update --init external/happly'.")
-endif()
-target_include_directories(springls SYSTEM PRIVATE ${SPRINGLS_HAPPLY_DIR})
+target_include_directories(springls PRIVATE ${SPRINGLS_KDTREE_DIR})
+# happly (header only, from the submodule) reads and writes PLY files; only the library's sources use it.
+target_include_directories(springls PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/external/happly)
 target_link_libraries(springls PUBLIC springls_eigen)
 target_link_libraries(springls PRIVATE tinyvdb_mesh_ops tinyvdb)
 
 if(SPRINGLS_USE_OPENMP)
-	# MSVC's default OpenMP 2.0 lacks min/max reductions and tasks; use its LLVM runtime (CMake 3.30+).
-	set(OpenMP_RUNTIME_MSVC llvm)
+	# MSVC's default OpenMP 2.0 lacks min/max reductions; use its LLVM runtime (CMake 3.30+).
+	if(MSVC AND NOT DEFINED OpenMP_RUNTIME_MSVC)
+		set(OpenMP_RUNTIME_MSVC llvm)
+	endif()
 	find_package(OpenMP COMPONENTS CXX)
 	if(OpenMP_CXX_FOUND)
 		target_link_libraries(springls PUBLIC OpenMP::OpenMP_CXX)
@@ -75,13 +86,49 @@ if(SPRINGLS_USE_OPENMP)
 	endif()
 endif()
 
-if(NOT SPRINGLS_BUILD_EXAMPLES)
-	return()
-endif()
-
+# ------------------------------------------------------------------------------------------------
+# toybox core: configurations, registry, simulation adapters, experiment, command line. No GL.
+# ------------------------------------------------------------------------------------------------
 # argparse (header only, from the submodule).
 add_library(argparse INTERFACE)
 target_include_directories(argparse INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/external/argparse/include)
+
+file(GLOB SPRINGLS_TOYBOX_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/apps/core/*.cpp)
+add_library(springls_toybox STATIC ${SPRINGLS_TOYBOX_SOURCES})
+target_include_directories(springls_toybox PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/apps)
+target_link_libraries(springls_toybox PUBLIC springls springls_intrinsic)
+target_link_libraries(springls_toybox PRIVATE argparse)
+# Defaults of the command line: the panel font, the mesh scenario's assets and its cache of initial states.
+target_compile_definitions(springls_toybox PRIVATE
+	SPRINGLS_FONT_FILE="${CMAKE_CURRENT_SOURCE_DIR}/external/nanovg/example/Roboto-Regular.ttf"
+	SPRINGLS_ASSET_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets"
+	SPRINGLS_CACHE_DIR="${CMAKE_BINARY_DIR}/cache")
+
+# ------------------------------------------------------------------------------------------------
+# intrinsic-springls runner (headless): multi-object springls on a triangle-mesh surface.
+# ------------------------------------------------------------------------------------------------
+add_library(springls_intrinsic STATIC ${CMAKE_CURRENT_SOURCE_DIR}/apps/intrinsic-springls/Runner.cpp ${CMAKE_CURRENT_SOURCE_DIR}/apps/intrinsic-springls/Render.cpp)
+# stb_image_write (header only, from nanovg) writes the PNG views.
+target_include_directories(springls_intrinsic PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/external/nanovg/src/thirdParty)
+target_include_directories(springls_intrinsic PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/apps)
+target_link_libraries(springls_intrinsic PUBLIC springls)
+target_link_libraries(springls_intrinsic PRIVATE argparse)
+target_compile_definitions(springls_intrinsic PRIVATE SPRINGLS_ASSET_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets")
+
+# Unit tests: every tests/*.cpp is part of the springls-tests executable (a tiny CHECK/TEST harness).
+if(SPRINGLS_BUILD_TESTS)
+	enable_testing()
+	file(GLOB SPRINGLS_TEST_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tests/*.cpp)
+	add_executable(springls-tests ${SPRINGLS_TEST_SOURCES})
+	target_link_libraries(springls-tests PRIVATE springls springls_toybox springls_intrinsic)
+	# Tests that compare with the captured baselines (build/baseline*) or read the README find them here.
+	target_compile_definitions(springls-tests PRIVATE SPRINGLS_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+	add_test(NAME springls-tests COMMAND springls-tests)
+endif()
+
+if(NOT SPRINGLS_BUILD_EXAMPLES)
+	return()
+endif()
 
 # ------------------------------------------------------------------------------------------------
 # GUI dependencies: GLFW, OpenGL, Dear ImGui, NanoVG (C++ port).
@@ -120,110 +167,69 @@ if(SPRINGLS_BUILD_GUI)
 		target_compile_options(nanovg PRIVATE -w)
 	endif()
 
-	# OpenGL 3 entry points: GLEW where available (needed on Windows), otherwise the system
-	# prototypes (Linux / macOS).
-	find_package(GLEW QUIET)
-	if(WIN32 AND NOT GLEW_FOUND)
-		# No installed GLEW: build the static library from nanovg's submodule.
-		set(SPRINGLS_GLEW_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/nanovg/external/glew)
-		if(EXISTS ${SPRINGLS_GLEW_DIR}/src/glew.c)
-			add_library(springls_glew STATIC ${SPRINGLS_GLEW_DIR}/src/glew.c)
-			target_include_directories(springls_glew PUBLIC ${SPRINGLS_GLEW_DIR}/include)
-			target_compile_definitions(springls_glew PUBLIC GLEW_STATIC)
-			target_link_libraries(springls_glew PUBLIC OpenGL::GL)
-			add_library(GLEW::GLEW ALIAS springls_glew)
-			set(GLEW_FOUND TRUE)
-		else()
-			message(FATAL_ERROR "GLEW not found. On Windows run "
-				"'git -C external/nanovg submodule update --init external/glew', or set SPRINGLS_BUILD_GUI=OFF.")
-		endif()
+	# OpenGL 3 entry points: on Windows the glad loader (header only) bundled in GLFW's deps, otherwise
+	# the system prototypes (Linux / macOS).
+	set(SPRINGLS_GLAD_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/nanovg/external/glfw/deps)
+	if(WIN32 AND NOT EXISTS ${SPRINGLS_GLAD_DIR}/glad/gl.h)
+		message(FATAL_ERROR "glad not found in ${SPRINGLS_GLAD_DIR}. Run "
+			"'git -C external/nanovg submodule update --init external/glfw', or set SPRINGLS_BUILD_GUI=OFF.")
 	endif()
 endif()
 
 # ------------------------------------------------------------------------------------------------
-# Enright 2D example.
+# toybox windows: the 2D Enright, 3D Enright, mesh and sphere windows, reading the core's runs.
 # ------------------------------------------------------------------------------------------------
-set(ENRIGHT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/examples/enright2d)
-set(ENRIGHT_SOURCES ${ENRIGHT_DIR}/main.cpp ${ENRIGHT_DIR}/Experiment.cpp)
+set(TOYBOX_DIR ${CMAKE_CURRENT_SOURCE_DIR}/apps)
 if(SPRINGLS_BUILD_GUI)
-	list(APPEND ENRIGHT_SOURCES ${ENRIGHT_DIR}/Renderer.cpp ${ENRIGHT_DIR}/Gui.cpp)
-endif()
-add_executable(enright2d ${ENRIGHT_SOURCES})
-target_link_libraries(enright2d PRIVATE springls argparse)
-if(SPRINGLS_BUILD_GUI)
-	target_link_libraries(enright2d PRIVATE imgui nanovg glfw OpenGL::GL)
-	target_compile_definitions(enright2d PRIVATE SPRINGLS_GUI
-		SPRINGLS_FONT_FILE="${CMAKE_CURRENT_SOURCE_DIR}/external/nanovg/example/Roboto-Regular.ttf")
-	if(GLEW_FOUND AND WIN32)
-		target_link_libraries(enright2d PRIVATE GLEW::GLEW)
-		target_compile_definitions(enright2d PRIVATE SPRINGLS_GLEW)
-	elseif(NOT WIN32)
-		target_compile_definitions(enright2d PRIVATE GL_GLEXT_PROTOTYPES=1)
+	file(GLOB TOYBOX_DEMO_SOURCES CONFIGURE_DEPENDS
+		${TOYBOX_DIR}/common/*.cpp ${TOYBOX_DIR}/enright2d/*.cpp ${TOYBOX_DIR}/enright3d/*.cpp ${TOYBOX_DIR}/mesh/*.cpp ${TOYBOX_DIR}/sphere/*.cpp)
+	add_library(springls_toybox_gui STATIC ${TOYBOX_DEMO_SOURCES})
+	target_include_directories(springls_toybox_gui PUBLIC ${TOYBOX_DIR}/common)
+	target_include_directories(springls_toybox_gui PRIVATE ${NANOVG_DIR}/thirdParty)
+	target_link_libraries(springls_toybox_gui PUBLIC springls_toybox imgui nanovg glfw OpenGL::GL)
+	target_compile_definitions(springls_toybox_gui PUBLIC SPRINGLS_GUI)
+	# The mesh window's matcaps.
+	target_compile_definitions(springls_toybox_gui PRIVATE SPRINGLS_ASSET_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets")
+	if(WIN32)
+		target_include_directories(springls_toybox_gui PUBLIC ${SPRINGLS_GLAD_DIR})
+		target_compile_definitions(springls_toybox_gui PUBLIC SPRINGLS_GLAD)
+	else()
+		target_compile_definitions(springls_toybox_gui PUBLIC GL_GLEXT_PROTOTYPES=1)
 	endif()
 endif()
 
-# ------------------------------------------------------------------------------------------------
-# Semi-Lagrangian vs CFL-limited doubleweave (reuses the Enright 2D experiment, renderer and GUI).
-# ------------------------------------------------------------------------------------------------
-set(SL_ENRIGHT2D_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/examples/sl-enright2d/main.cpp ${ENRIGHT_DIR}/Experiment.cpp)
-if(SPRINGLS_BUILD_GUI)
-	list(APPEND SL_ENRIGHT2D_SOURCES ${ENRIGHT_DIR}/Renderer.cpp ${ENRIGHT_DIR}/Gui.cpp)
-endif()
-add_executable(sl-enright2d ${SL_ENRIGHT2D_SOURCES})
-target_include_directories(sl-enright2d PRIVATE ${ENRIGHT_DIR})
-target_link_libraries(sl-enright2d PRIVATE springls argparse)
-if(SPRINGLS_BUILD_GUI)
-	target_link_libraries(sl-enright2d PRIVATE imgui nanovg glfw OpenGL::GL)
-	target_compile_definitions(sl-enright2d PRIVATE SPRINGLS_GUI
-		SPRINGLS_FONT_FILE="${CMAKE_CURRENT_SOURCE_DIR}/external/nanovg/example/Roboto-Regular.ttf")
-	if(GLEW_FOUND AND WIN32)
-		target_link_libraries(sl-enright2d PRIVATE GLEW::GLEW)
-		target_compile_definitions(sl-enright2d PRIVATE SPRINGLS_GLEW)
-	elseif(NOT WIN32)
-		target_compile_definitions(sl-enright2d PRIVATE GL_GLEXT_PROTOTYPES=1)
+# Links an executable of the toybox (it calls toybox::Main from common/Toybox.hpp) to the core and, in GUI builds, the windows.
+function(springls_toybox_executable target)
+	add_executable(${target} ${ARGN})
+	if(SPRINGLS_BUILD_GUI)
+		target_link_libraries(${target} PRIVATE springls_toybox_gui)
+	else()
+		target_link_libraries(${target} PRIVATE springls_toybox)
 	endif()
-endif()
+endfunction()
+
+springls_toybox_executable(toybox ${TOYBOX_DIR}/Toybox.cpp)
+
+add_executable(intrinsic-springls ${CMAKE_CURRENT_SOURCE_DIR}/apps/intrinsic-springls/main.cpp)
+target_link_libraries(intrinsic-springls PRIVATE springls_intrinsic)
 
 # ------------------------------------------------------------------------------------------------
-# Enright 3D example.
+# One program per registry entry, <scenario>-<domain>-<method key>, in build/demo (toybox --list
+# prints them; a test checks this list against the registry).
 # ------------------------------------------------------------------------------------------------
-set(ENRIGHT3D_DIR ${CMAKE_CURRENT_SOURCE_DIR}/examples/enright3d)
-set(ENRIGHT3D_SOURCES ${ENRIGHT3D_DIR}/main.cpp ${ENRIGHT3D_DIR}/Experiment.cpp)
-if(SPRINGLS_BUILD_GUI)
-	list(APPEND ENRIGHT3D_SOURCES ${ENRIGHT3D_DIR}/Renderer.cpp ${ENRIGHT3D_DIR}/Gui.cpp ${ENRIGHT3D_DIR}/TriPlanar.cpp)
-endif()
-add_executable(enright3d ${ENRIGHT3D_SOURCES})
-target_link_libraries(enright3d PRIVATE springls argparse)
-if(SPRINGLS_BUILD_GUI)
-	target_link_libraries(enright3d PRIVATE imgui nanovg glfw OpenGL::GL)
-	target_compile_definitions(enright3d PRIVATE SPRINGLS_GUI
-		SPRINGLS_FONT_FILE="${CMAKE_CURRENT_SOURCE_DIR}/external/nanovg/example/Roboto-Regular.ttf")
-	if(GLEW_FOUND AND WIN32)
-		target_link_libraries(enright3d PRIVATE GLEW::GLEW)
-		target_compile_definitions(enright3d PRIVATE SPRINGLS_GLEW)
-	elseif(NOT WIN32)
-		target_compile_definitions(enright3d PRIVATE GL_GLEXT_PROTOTYPES=1)
-	endif()
-endif()
-
-# ------------------------------------------------------------------------------------------------
-# Semi-Lagrangian vs CFL-limited doubleweave in 3D (reuses the Enright 3D experiment, renderer and GUI).
-# ------------------------------------------------------------------------------------------------
-set(SL_ENRIGHT3D_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/examples/sl-enright3d/main.cpp ${ENRIGHT3D_DIR}/Experiment.cpp)
-if(SPRINGLS_BUILD_GUI)
-	list(APPEND SL_ENRIGHT3D_SOURCES ${ENRIGHT3D_DIR}/Renderer.cpp ${ENRIGHT3D_DIR}/Gui.cpp ${ENRIGHT3D_DIR}/TriPlanar.cpp)
-endif()
-add_executable(sl-enright3d ${SL_ENRIGHT3D_SOURCES})
-target_include_directories(sl-enright3d PRIVATE ${ENRIGHT3D_DIR})
-target_link_libraries(sl-enright3d PRIVATE springls argparse)
-if(SPRINGLS_BUILD_GUI)
-	target_link_libraries(sl-enright3d PRIVATE imgui nanovg glfw OpenGL::GL)
-	target_compile_definitions(sl-enright3d PRIVATE SPRINGLS_GUI
-		SPRINGLS_FONT_FILE="${CMAKE_CURRENT_SOURCE_DIR}/external/nanovg/example/Roboto-Regular.ttf")
-	if(GLEW_FOUND AND WIN32)
-		target_link_libraries(sl-enright3d PRIVATE GLEW::GLEW)
-		target_compile_definitions(sl-enright3d PRIVATE SPRINGLS_GLEW)
-	elseif(NOT WIN32)
-		target_compile_definitions(sl-enright3d PRIVATE GL_GLEXT_PROTOTYPES=1)
-	endif()
-endif()
+set(TOYBOX_PROGRAMS
+	enright-2d-springls enright-2d-adaptive-springls enright-2d-dweave enright-2d-adaptive-dweave enright-2d-levelset enright-2d-adaptive-levelset
+	enright-2d-semi-lagrangian-dweave
+	enright-2d-multi-levelset enright-2d-adaptive-multi-levelset enright-2d-multi-springls enright-2d-adaptive-multi-springls enright-2d-multi-dweave
+	enright-2d-adaptive-multi-dweave
+	enright-3d-springls enright-3d-adaptive-springls enright-3d-dweave enright-3d-adaptive-dweave enright-3d-semi-lagrangian-dweave
+	enright-3d-levelset enright-3d-adaptive-levelset
+	mesh-3d-dweave
+	sphere-surf-multi-springls stone-surf-multi-springls
+)
+foreach(PROGRAM ${TOYBOX_PROGRAMS})
+	springls_toybox_executable(${PROGRAM} ${CMAKE_CURRENT_SOURCE_DIR}/apps/Demo.cpp)
+	target_compile_definitions(${PROGRAM} PRIVATE TOYBOX_PROGRAM="${PROGRAM}")
+	# The programs go in build/demo, apart from toybox and the tests.
+	set_target_properties(${PROGRAM} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/demo)
+endforeach()
