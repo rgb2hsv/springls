@@ -34,6 +34,7 @@ the level set from the springls every sub-step, so it has no CFL limit. Enright 
 
 ```bash
 git submodule update --init          # eigen, cereal, kdtree-cpp, happly, tinyvdb, imgui, nanovg, argparse (not recursive)
+git -C external/nanovg submodule update --init external/Vulkan-Headers   # GUI builds: NanoVG's Vulkan backend
 cmake -S . -B build -G Ninja         # Release by default
 cmake --build build
 ```

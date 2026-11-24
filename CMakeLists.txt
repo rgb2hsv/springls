@@ -161,10 +161,25 @@ if(SPRINGLS_BUILD_GUI)
 	set(NANOVG_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/nanovg/src)
 	file(GLOB NANOVG_SOURCES CONFIGURE_DEPENDS ${NANOVG_DIR}/nvg/*.cpp)
 	add_library(nanovg STATIC ${NANOVG_SOURCES})
-	target_include_directories(nanovg PUBLIC ${NANOVG_DIR} ${NANOVG_DIR}/nvg ${NANOVG_DIR}/nvg/legacy ${NANOVG_DIR}/thirdParty)
+	target_include_directories(nanovg PUBLIC ${NANOVG_DIR} ${NANOVG_DIR}/nvg ${NANOVG_DIR}/nvg/stable ${NANOVG_DIR}/thirdParty)
 	target_compile_definitions(nanovg PRIVATE NANOVG_FAST_SQRT=1)
 	if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
 		target_compile_options(nanovg PRIVATE -w)
+	endif()
+
+	# NanoVG's Vulkan backend (nanovg_vk.hpp, header only, plus the stable C API in nanovg_vk), built
+	# against the Vulkan headers pinned in nanovg's submodule. The GUI still draws with the GL3 backend;
+	# this keeps the Vulkan backend compiling for the coming port.
+	set(SPRINGLS_VULKAN_HEADERS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/nanovg/external/Vulkan-Headers)
+	if(NOT EXISTS ${SPRINGLS_VULKAN_HEADERS_DIR}/CMakeLists.txt)
+		message(FATAL_ERROR "Vulkan headers not found in ${SPRINGLS_VULKAN_HEADERS_DIR}. Run "
+			"'git -C external/nanovg submodule update --init external/Vulkan-Headers', or set SPRINGLS_BUILD_GUI=OFF.")
+	endif()
+	add_subdirectory(${SPRINGLS_VULKAN_HEADERS_DIR} ${CMAKE_BINARY_DIR}/Vulkan-Headers EXCLUDE_FROM_ALL)
+	add_library(nanovg_vk STATIC ${NANOVG_DIR}/nvg/stable/nanovg_vk.cpp)
+	target_link_libraries(nanovg_vk PUBLIC nanovg Vulkan::Headers)
+	if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+		target_compile_options(nanovg_vk PRIVATE -w)
 	endif()
 
 	# OpenGL 3 entry points: on Windows the glad loader (header only) bundled in GLFW's deps, otherwise

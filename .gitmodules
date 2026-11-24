@@ -3,7 +3,7 @@
 	url = https://github.com/ocornut/imgui.git
 [submodule "external/nanovg"]
 	path = external/nanovg
-	url = https://github.com/rgb2hsv/nanovg.git
+	url = https://github.com/rgb2hsv/nanovg-cpp.git
 [submodule "external/argparse"]
 	path = external/argparse
 	url = https://github.com/p-ranav/argparse.git
