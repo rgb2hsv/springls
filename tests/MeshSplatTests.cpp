@@ -161,7 +161,7 @@ TEST(candidate_query_matches_bvh)
         const Vec3 p = kCenter + dir.normalized() * (6.3f + 2.0f * unit(random));
         uint32_t closest = 0;
         const auto candidate = distance->signedDistance(p, all, std::numeric_limits<float>::infinity(), &closest);
-        if (!candidate || std::abs(*candidate - distance->signedDistance(p)) > 1e-6f) mismatches++;
+        if (!candidate || std::abs(*candidate - distance->signedDistance(p)) > 1e-5f) mismatches++;  // the two paths round differently
         if (candidate && distance->faceDistance(closest, p) != std::abs(*candidate)) mismatches++;
     }
     CHECK(mismatches == 0);

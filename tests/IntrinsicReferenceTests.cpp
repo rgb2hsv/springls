@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <numbers>
 
 using namespace springls;
 using springls_test::MakeRegions;
@@ -71,7 +72,7 @@ TEST(reference_rigid_rotation_returns)
     const auto velocity = [&](const SurfacePoint &p, double) {
         return springls_test::TangentToLayout(tri, p.face, Vec3d(0, 0, 1).cross(springls_test::CornerPosition(tri, p)));
     };
-    ref.advance(tri, velocity, 0.0, 2.0 * M_PI, 0.3 * h, {});
+    ref.advance(tri, velocity, 0.0, 2.0 * std::numbers::pi, 0.3 * h, {});
     CHECK(MaxMovement(tri, ref, start) < 0.05 * h);
 }
 

@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: MSVC (Windows)
+            os: windows-latest
+            generator: Visual Studio 17 2022
+            cmake-args: -A x64
+          - name: GCC (Linux)
+            os: ubuntu-24.04
+            generator: Ninja
+            cc: gcc-14
+            cxx: g++-14
+          - name: Clang (Linux)
+            os: ubuntu-24.04
+            generator: Ninja
+            cc: clang-18
+            cxx: clang++-18
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Only the submodules the build uses; nanovg's SDL / glslang / glew are not needed.
+      - name: Fetch submodules
+        shell: bash
+        run: |
+          git submodule update --init --depth 1 --jobs 8
+          git -C external/nanovg submodule update --init --depth 1 external/glfw external/Vulkan-Headers
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libomp-18-dev libgl-dev libglfw3-dev \
+            libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev
+
+      - name: Configure
+        shell: bash
+        run: |
+          if [ -n "${{ matrix.cxx }}" ]; then export CC=${{ matrix.cc }} CXX=${{ matrix.cxx }}; fi
+          cmake -S . -B build-ci -G "${{ matrix.generator }}" ${{ matrix.cmake-args }} -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build-ci --config Release --parallel 4
+
+      - name: Test
+        run: ctest --test-dir build-ci -C Release --output-on-failure

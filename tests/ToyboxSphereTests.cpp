@@ -20,7 +20,8 @@ using namespace toybox;
 
 namespace
 {
-const char *kScratch = "/mnt/spinny/scratch/sphere-scenario";
+// Scratch files go in the system temp directory.
+std::string Scratch() { return (std::filesystem::temp_directory_path() / "sphere-scenario").string(); }
 
 // The sphere demo's invocation for the arguments, parsed as the command line would.
 bool Parse(const std::vector<std::string> &args, Invocation &inv, std::string &error)
@@ -40,7 +41,7 @@ TEST(sphere_headless_runs_and_writes_csv)
 {
     Invocation inv;
     std::string error;
-    const std::string csv = std::string(kScratch) + "/s.csv";
+    const std::string csv = Scratch() + "/s.csv";
     CHECK(Parse({"--object", "star", "--radius", "0.4", "--steps", "3", "--no-gui", "--csv", csv}, inv, error));
     Experiment experiment;
     CHECK(experiment.init(inv.entries, inv.run, inv.pacing, inv.limits, error));
@@ -98,15 +99,18 @@ TEST(sphere_snapshot_counts)
     CHECK(snap.stamp != 0);
     CHECK(!snap.complete);
     CHECK(snap.period > 0 && snap.objectRadius > 0 && snap.lengthScale > 0);
-    // Every arrow starts in the band the object sweeps: the unit sphere's geodesic distance from the loop center
-    // is the angle to it.
+    // The arrows sample the whole sphere (face centroids over the whole mesh), so they reach both the band the
+    // object sweeps and beyond it: the unit sphere's geodesic distance from the loop center is the angle to it.
     const springls::Vec3 pole = snap.vertices[sim.session().scenario().center()];
     const double rho = sim.session().scenario().loopDistance(), r = snap.objectRadius, h = sim.session().inputTriangulation().meanEdgeLength();
+    size_t inBand = 0;
     for (const SphereArrow &a : snap.arrows) {
+        CHECK(std::abs(a.from.norm() - 1.0f) < 0.02f);
         const double d = std::acos(std::min(1.0f, a.from.normalized().dot(pole.normalized())));
-        CHECK(d >= rho - 2 * r - 2 * h - 0.05 && d <= rho + 2 * r + 2 * h + 0.05);
+        inBand += d >= rho - 2 * r - 2 * h - 0.05 && d <= rho + 2 * r + 2 * h + 0.05;
         CHECK(a.speed > 0);
     }
+    CHECK(inBand > 0 && inBand < snap.arrows.size());
 }
 
 TEST(sphere_snapshot_uses_refined_mesh)

@@ -19,6 +19,17 @@ option(SPRINGLS_BUILD_TESTS "Build the unit tests" ON)
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
 	add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-Wall;-Wextra;-Wno-unused-parameter>")
 endif()
+if(MSVC)
+	# Compile each target's sources in parallel (/MP), read sources as UTF-8, and lift the object-section limit
+	# that large Eigen-heavy translation units can hit (/bigobj). /MP only helps the Visual Studio generator.
+	option(SPRINGLS_MSVC_MP "Compile with /MP (parallel compilation within a target)" ON)
+	add_compile_options("$<$<COMPILE_LANGUAGE:C,CXX>:/utf-8;/bigobj>")
+	if(SPRINGLS_MSVC_MP AND CMAKE_GENERATOR MATCHES "Visual Studio")
+		add_compile_options("$<$<COMPILE_LANGUAGE:C,CXX>:/MP>")
+	endif()
+	# M_PI and friends from <cmath>; min/max macros from <windows.h> off.
+	add_compile_definitions(_USE_MATH_DEFINES NOMINMAX)
+endif()
 
 # ------------------------------------------------------------------------------------------------
 # Core library: spring level sets, DoubleWeave, adaptive variants. Depends only on Eigen (+ OpenMP).

@@ -6,6 +6,7 @@
 #include <intrinsic/IntrinsicTrace.hpp>
 
 #include <cmath>
+#include <numbers>
 
 using namespace springls;
 
@@ -44,7 +45,7 @@ Polyline Star(double r, int samples = 200, double amplitude = 0.2)
 {
     Polyline p;
     for (int i = 0; i < samples; i++) {
-        const double t = 2.0 * M_PI * i / samples, R = r * (1.0 + amplitude * std::cos(5.0 * t));
+        const double t = 2.0 * std::numbers::pi * i / samples, R = r * (1.0 + amplitude * std::cos(5.0 * t));
         p.push_back(R * Vec2d(std::cos(t), std::sin(t)));
     }
     return p;
@@ -337,7 +338,7 @@ TEST(sign_field_side_inside_larger_than_half)
     const double h = tri.meanEdgeLength(), rho = 0.6;
     Polyline circle;
     for (int i = 0; i < 400; i++) {
-        const double t = -2.0 * M_PI * i / 400;
+        const double t = -2.0 * std::numbers::pi * i / 400;
         circle.push_back(rho * Vec2d(std::cos(t), std::sin(t)));
     }
     const SpringlSegments s = ClosedOutline(tri, 0, circle, 0.5 * h);
