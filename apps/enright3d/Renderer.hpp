@@ -33,6 +33,8 @@ struct Visibility {
     // itself (the inlay) in the constellation color and the overshoot in one capsule color.
     bool capsules = false;
     float capsuleRadius = springls::SpringLevelSet3D::Tuning().fillDistance;
+    // Mesh tracking: the tracked mesh (true) or the iso-surface, either matcap shaded with its wireframe over it.
+    bool trackedSurface = true;
 };
 
 // Orthographic orbit camera shared by all panels. The domain is mapped to a unit cube about the
@@ -58,7 +60,8 @@ struct Rect {
 };
 
 // Draws one panel per run (2 columns when there is more than one) with OpenGL 3, each with a text
-// header of its metrics (NanoVG). All panels share one camera.
+// header of its metrics (NanoVG); a run with meshlet levels (LOD springls, Visibility::meshlets) gets one
+// panel per level instead, in two rows. All panels share one camera.
 class Renderer
 {
 public:
@@ -71,9 +74,14 @@ public:
     bool init(const std::string &fontFile, std::string &error);
     void shutdown();
 
-    static std::vector<Rect> Layout(size_t count, const Rect &bounds);
+    // What each panel shows: a run.
+    struct PanelView {
+        size_t run = 0;
+    };
+    static std::vector<PanelView> Views(const ExperimentSnapshot &experiment, const Visibility &visibility);
+    static std::vector<Rect> Layout(size_t count, const Rect &bounds, int columns = 0);
     // Size of an image that fits `count` panels of panelSize pixels (rounded to even numbers).
-    static void ImageSize(size_t count, float panelSize, int &width, int &height);
+    static void ImageSize(size_t count, float panelSize, int &width, int &height, int columns = 0);
 
     // Draws the experiment into `bounds` (logical pixels) of the bound framebuffer, whose logical
     // size is viewWidth x viewHeight. `status` is appended to the time line of unfinished runs.

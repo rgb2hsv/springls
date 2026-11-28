@@ -352,6 +352,16 @@ TEST(cli_sl_comparison_needs_a_semi_lagrangian_run)
     CHECK(p.ok && p.inv.slComparison && p.inv.slOnly);
 }
 
+// Mesh tracking is semi-Lagrangian only, so its representation alone selects it (not as the SL comparison), and the
+// other representations keep their Eulerian default.
+TEST(cli_tracked_mesh_representation_selects_mesh_tracking)
+{
+    Parsed p = Parse(demos::Toybox(), {"--domain", "3d", "-r", "tracked-mesh"});
+    CHECK(p.ok && Keys(p.inv) == "mesh-tracking" && !p.inv.slComparison && p.inv.notes.empty());
+    p = Parse(demos::Toybox(), {"--domain", "3d", "-r", "dweave"});
+    CHECK(p.ok && Keys(p.inv) == "dweave,adaptive-dweave");
+}
+
 // A skipped combination of explicitly given axis values is noted even when each value alone has runs.
 TEST(cli_notes_skipped_combination_of_given_axes)
 {

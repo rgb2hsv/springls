@@ -295,3 +295,14 @@ TEST(experiment_restart_and_summary)
     const ExperimentSnapshot snap = Snapshot3D(threeD);
     CHECK(snap.runs.size() == 1 && snap.period == 0.5 && snap.generation == threeD.generation() && !snap.done());
 }
+
+// A checkpoint request for a run that cannot write checkpoints is an error, as --resume is, not a silent no-op.
+TEST(experiment_checkpoints_rejected_for_mesh_tracking)
+{
+    Limits limits;
+    limits.checkpointTimes = {0.5};
+    Experiment experiment;
+    std::string error;
+    CHECK(!experiment.init(Entries(Domain::D3, {"mesh-tracking"}), Small3D(), Pacing::Lockstep, limits, error));
+    CHECK(error.find("checkpoint") != std::string::npos && error.find("Mesh Tracking 3D") != std::string::npos);
+}

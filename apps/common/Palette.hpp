@@ -10,6 +10,8 @@
 //   slate springls, amber vertexes, mint normals, crimson particles, dark fuchsia arrows, ivory reference).
 #include <algorithm>
 #include <array>
+#include <cmath>
+#include <numbers>
 
 namespace toybox::palette
 {
@@ -65,4 +67,46 @@ constexpr Color Region(int label) { return kRegions[static_cast<size_t>(std::max
 // violet, orchid), ordered by hue and clear of the accents' hue families.
 inline constexpr std::array<Color, 5> kLevels = {Hex(0x5B6073), Hex(0x3E6F94), Hex(0x5560AA), Hex(0x7D5AA6), Hex(0xA65A9A)};
 constexpr Color Level(int level) { return kLevels[static_cast<size_t>(std::clamp(level, 0, static_cast<int>(kLevels.size()) - 1))]; }
+
+// Color of meshlet LOD level `level` of `levelCount`, as meshlet-viewer's "Meshlet (LOD gradient)" mode (its
+// lod_palette.cpp): designed in CIELAB (D65), lightness falls in equal steps from the finest level (L* 92) to
+// the coarsest (L* 62), hue turns 300 degrees from yellow round to red, and chroma is the largest (up to 55)
+// that stays inside sRGB. Linear RGB.
+inline Color MeshletLevelColor(int level, int levelCount)
+{
+    constexpr float kPiF = std::numbers::pi_v<float>;
+    struct Rgb {
+        float r, g, b;
+    };
+    const auto labToLinear = [](float L, float a, float b) {
+        const auto finv = [](float t) {
+            constexpr float d = 6.0f / 29.0f;
+            return t > d ? t * t * t : 3.0f * d * d * (t - 4.0f / 29.0f);
+        };
+        const float fy = (L + 16.0f) / 116.0f;
+        const float X = 0.95047f * finv(fy + a / 500.0f), Y = finv(fy), Z = 1.08883f * finv(fy - b / 200.0f);
+        return Rgb{3.2404542f * X - 1.5371385f * Y - 0.4985314f * Z, -0.9692660f * X + 1.8760108f * Y + 0.0415560f * Z,
+                   0.0556434f * X - 0.2040259f * Y + 1.0572252f * Z};
+    };
+    const auto inGamut = [](const Rgb &c) {
+        for (float v : {c.r, c.g, c.b}) {
+            if (v < -1e-4f || v > 1.0f + 1e-4f) return false;
+        }
+        return true;
+    };
+    const float t = levelCount > 1 ? static_cast<float>(std::min(level, levelCount - 1)) / static_cast<float>(levelCount - 1) : 0.0f;
+    const float L = 92.0f + (62.0f - 92.0f) * t;
+    const float hue = (100.0f + 300.0f * t) * kPiF / 180.0f;
+    float lo = 0.0f, hi = 55.0f;
+    if (!inGamut(labToLinear(L, hi * std::cos(hue), hi * std::sin(hue)))) {
+        for (int i = 0; i < 24; i++) {
+            const float mid = 0.5f * (lo + hi);
+            (inGamut(labToLinear(L, mid * std::cos(hue), mid * std::sin(hue))) ? lo : hi) = mid;
+        }
+    } else {
+        lo = hi;
+    }
+    const Rgb c = labToLinear(L, lo * std::cos(hue), lo * std::sin(hue));
+    return {std::clamp(c.r, 0.0f, 1.0f), std::clamp(c.g, 0.0f, 1.0f), std::clamp(c.b, 0.0f, 1.0f)};
+}
 }  // namespace toybox::palette

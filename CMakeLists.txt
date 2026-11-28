@@ -71,6 +71,22 @@ add_subdirectory(${SPRINGLS_TINYVDB_DIR} ${CMAKE_BINARY_DIR}/tinyvdb EXCLUDE_FRO
 add_library(springls_eigen INTERFACE)
 target_include_directories(springls_eigen SYSTEM INTERFACE ${SPRINGLS_EIGEN_DIR})
 
+# meshlet-optimizer (from the submodule) builds the meshlet LOD hierarchy of LOD Spring Level Sets. Only
+# springls_lod (src/lod/mopt/*.cpp) sees its headers: its cereal, argparse and kdtree-cpp pins differ from ours.
+# Its own `metasphere` test is registered with CTest but its executable is not built, so CTestCustom.cmake (read
+# by ctest from the build directory) skips it.
+file(WRITE ${CMAKE_BINARY_DIR}/CTestCustom.cmake "set(CTEST_CUSTOM_TESTS_IGNORE \${CTEST_CUSTOM_TESTS_IGNORE} metasphere)\n")
+set(SPRINGLS_MOPT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/meshlet-optimizer)
+if(NOT EXISTS ${SPRINGLS_MOPT_DIR}/CMakeLists.txt OR NOT EXISTS ${SPRINGLS_MOPT_DIR}/external/meshoptimizer/CMakeLists.txt)
+	message(FATAL_ERROR "meshlet-optimizer or its submodules not found in external/meshlet-optimizer. Run "
+		"'git submodule update --init external/meshlet-optimizer' and 'git -C external/meshlet-optimizer submodule update --init'.")
+endif()
+add_subdirectory(${SPRINGLS_MOPT_DIR} ${CMAKE_BINARY_DIR}/meshlet-optimizer EXCLUDE_FROM_ALL)
+file(GLOB SPRINGLS_LOD_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/lod/mopt/*.cpp)
+add_library(springls_lod STATIC ${SPRINGLS_LOD_SOURCES})
+target_include_directories(springls_lod PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(springls_lod PRIVATE mopt_core springls_eigen)
+
 file(GLOB SPRINGLS_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/*/*.cpp)
 add_library(springls STATIC ${SPRINGLS_SOURCES})
 target_include_directories(springls PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
@@ -80,7 +96,7 @@ target_include_directories(springls PRIVATE ${SPRINGLS_KDTREE_DIR})
 # happly (header only, from the submodule) reads and writes PLY files; only the library's sources use it.
 target_include_directories(springls PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/external/happly)
 target_link_libraries(springls PUBLIC springls_eigen)
-target_link_libraries(springls PRIVATE tinyvdb_mesh_ops tinyvdb)
+target_link_libraries(springls PRIVATE tinyvdb_mesh_ops tinyvdb springls_lod)
 
 if(SPRINGLS_USE_OPENMP)
 	# MSVC's default OpenMP 2.0 lacks min/max reductions; use its LLVM runtime (CMake 3.30+).
@@ -236,6 +252,13 @@ endfunction()
 
 springls_toybox_executable(toybox ${TOYBOX_DIR}/Toybox.cpp)
 
+# lod-charts (GUI builds): the LOD springls meshlet hierarchy's isometric UV charts per level, as PNG (NanoVG)
+# images and a checks report.
+if(SPRINGLS_BUILD_GUI)
+	add_executable(lod-charts ${TOYBOX_DIR}/lod-charts/main.cpp)
+	target_link_libraries(lod-charts PRIVATE springls_toybox_gui argparse)
+endif()
+
 add_executable(intrinsic-springls ${CMAKE_CURRENT_SOURCE_DIR}/apps/intrinsic-springls/main.cpp)
 target_link_libraries(intrinsic-springls PRIVATE springls_intrinsic)
 
@@ -248,7 +271,7 @@ set(TOYBOX_PROGRAMS
 	enright-2d-semi-lagrangian-dweave
 	enright-2d-multi-levelset enright-2d-adaptive-multi-levelset enright-2d-multi-springls enright-2d-adaptive-multi-springls enright-2d-multi-dweave
 	enright-2d-adaptive-multi-dweave
-	enright-3d-springls enright-3d-adaptive-springls enright-3d-dweave enright-3d-adaptive-dweave enright-3d-semi-lagrangian-dweave
+	enright-3d-springls enright-3d-adaptive-springls enright-3d-dweave enright-3d-adaptive-dweave enright-3d-semi-lagrangian-dweave enright-3d-mesh-tracking
 	enright-3d-levelset enright-3d-adaptive-levelset
 	mesh-3d-dweave
 	sphere-surf-multi-springls stone-surf-multi-springls

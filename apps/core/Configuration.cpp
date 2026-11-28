@@ -10,6 +10,7 @@ const char *Key(Representation value)
         case Representation::Springls: return "springls";
         case Representation::Dweave: return "dweave";
         case Representation::LevelSet: return "levelset";
+        case Representation::TrackedMesh: return "tracked-mesh";
     }
     return "";
 }

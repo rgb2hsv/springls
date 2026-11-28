@@ -13,12 +13,13 @@
 
 #include <functional>
 #include <map>
+#include <numbers>
 
 namespace springls
 {
 namespace
 {
-constexpr double kPiD = 3.14159265358979323846;
+constexpr double kPiD = std::numbers::pi;
 }
 
 ImageF MakeEnrightInitialLevelSet(const EnrightConfig2D &config)

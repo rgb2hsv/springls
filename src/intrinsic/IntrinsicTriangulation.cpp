@@ -8,6 +8,7 @@
 #include <deque>
 #include <limits>
 #include <map>
+#include <numbers>
 #include <numeric>
 #include <utility>
 
@@ -15,8 +16,8 @@ namespace springls
 {
 namespace
 {
-constexpr double kTwoPi = 6.283185307179586476925286766559;
-constexpr double kPiD = 3.14159265358979323846264338327950;
+constexpr double kTwoPi = 2.0 * std::numbers::pi;
+constexpr double kPiD = std::numbers::pi;
 
 double Cross(const Vec2d &a, const Vec2d &b) { return a.x() * b.y() - a.y() * b.x(); }
 Vec2d Perp(const Vec2d &a) { return Vec2d(-a.y(), a.x()); }  // +90° rotation

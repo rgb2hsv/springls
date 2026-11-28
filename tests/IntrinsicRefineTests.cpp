@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <numbers>
 #include <random>
 #include <string>
 #include <vector>
@@ -16,7 +17,7 @@ using springls_test::TestMesh;
 
 namespace
 {
-constexpr double kTwoPi = 6.283185307179586;
+constexpr double kTwoPi = 2.0 * std::numbers::pi;
 
 IntrinsicTriangulation Built(const TestMesh &mesh)
 {

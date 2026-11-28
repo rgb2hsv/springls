@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <iostream>
 #include <limits>
+#include <numbers>
 #include <vector>
 
 namespace springls
@@ -20,7 +21,7 @@ using Points2 = std::vector<Vec2>;
 using Curve = std::vector<uint32_t>;
 using Curves = std::vector<Curve>;
 
-constexpr float kPi = 3.14159265358979323846f;
+constexpr float kPi = std::numbers::pi_v<float>;
 
 inline float cross2(const Vec2 &a, const Vec2 &b) { return a.x() * b.y() - a.y() * b.x(); }
 inline float distance(const Vec2 &a, const Vec2 &b) { return (a - b).norm(); }

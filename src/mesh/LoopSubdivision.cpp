@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <map>
+#include <numbers>
 #include <utility>
 
 namespace springls
@@ -67,7 +68,7 @@ LoopMesh LoopSubdivide(const LoopMesh &mesh, const std::vector<uint8_t> &refineF
     for (uint32_t v = 0; v < V; v++) {
         if (!interior[v] || neighbors[v].empty()) continue;
         const double n = static_cast<double>(neighbors[v].size());
-        const double c = 3.0 / 8.0 + 0.25 * std::cos(2.0 * 3.14159265358979323846 / n);
+        const double c = 3.0 / 8.0 + 0.25 * std::cos(2.0 * std::numbers::pi / n);
         const double beta = (5.0 / 8.0 - c * c) / n;
         Vec3d p = (1.0 - n * beta) * mesh.vertices[v].cast<double>();
         for (uint32_t w : neighbors[v]) p += beta * mesh.vertices[w].cast<double>();

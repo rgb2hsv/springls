@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cmath>
 #include <deque>
+#include <numbers>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -14,7 +15,7 @@ namespace springls
 {
 namespace
 {
-constexpr double kPiD = 3.141592653589793;
+constexpr double kPiD = std::numbers::pi;
 constexpr double kTwoPiD = 2.0 * kPiD;
 // Outline samples per mean edge length.
 constexpr double kSamplesPerEdge = 4.0;

@@ -1,3 +1,4 @@
+#include <core/Common.hpp>
 #include <core/Profile.hpp>
 #include <springl/SpringlSignField3D.hpp>
 
@@ -7,6 +8,7 @@
 #include <cmath>
 #include <limits>
 #include <optional>
+#include <vector>
 
 namespace springls
 {
@@ -320,5 +322,56 @@ float SpringlSignField3D::sign(const Vec3 &p) const
     const int leaf = mInput.grid->findLeaf(p);
     if (isCoarseLeaf(leaf)) return mCoarseSign[leaf];
     return 1.0f;
+}
+
+void FillGridFromSignField(AdaptiveGrid3D &grid, const SpringlSignField3D &field, float band, float clamp)
+{
+    using Block = AdaptiveGrid3D::Block;
+    ProfileScope profileScope("rebuild: phi at nodes");
+
+    // phi = sign * min(U, clamp) on the finest leaves, where the surface lies: the distance is only
+    // needed a few cells out (contour interpolation and gradients near the surface), and the clamp
+    // keeps each closest-triangle query local. Coarser leaves never hold the surface; they are
+    // tiles of +-band with their region's sign, as in the CFL-limited grid.
+    const float finest = field.latticeSpacing();
+    const std::vector<int> &leaves = grid.leaves();
+    const int L = static_cast<int>(leaves.size());
+    std::vector<std::vector<float>> values(leaves.size());
+    std::vector<float> tileValue(leaves.size(), 0.0f);
+    {
+        const auto &blocks = grid.blocks();
+        SPRINGLS_OMP(omp parallel for schedule(dynamic, 4) if (L >= kParallelMinBlocks))
+        for (int n = 0; n < L; n++) {
+            const Block &block = blocks[leaves[n]];
+            const Vec3 center = block.origin + Vec3::Constant(0.5f * block.size());
+            const float halfDiagonal = 0.5f * std::sqrt(3.0f) * block.size();
+            if (block.h > 1.001f * finest || !field.anyWithin(center, halfDiagonal + clamp)) {
+                tileValue[n] = field.sign(center) * band;
+                continue;
+            }
+            std::vector<float> &v = values[n];
+            v.resize(AdaptiveGrid3D::kNodeCount);
+            for (int c = 0; c < AdaptiveGrid3D::kBlockNodes; c++) {
+                for (int b = 0; b < AdaptiveGrid3D::kBlockNodes; b++) {
+                    for (int a = 0; a < AdaptiveGrid3D::kBlockNodes; a++) v[Block::index(a, b, c)] = field.phi(block.nodePosition(a, b, c), clamp);
+                }
+            }
+        }
+    }
+    auto &blocks = grid.blocks();
+    for (int n = 0; n < L; n++) {
+        Block &block = blocks[leaves[n]];
+        const std::vector<float> &v = values[n];
+        if (v.empty()) {
+            block.makeTile(tileValue[n]);
+            continue;
+        }
+        const float first = v[0];
+        if (std::abs(first) == clamp && std::all_of(v.begin(), v.end(), [first](float x) { return x == first; })) {
+            block.makeTile(first > 0.0f ? band : -band);
+        } else {
+            block.phi = v;
+        }
+    }
 }
 }  // namespace springls

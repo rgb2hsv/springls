@@ -2,6 +2,8 @@
 // A 3D method running the Enright test (today's enright3d::Run), with checkpoints.
 #include "Simulation.hpp"
 
+#include <lod/MeshCheck3D.hpp>
+#include <lod/TriangleSurface3D.hpp>
 #include <scenarios/EnrightTest3D.hpp>
 #include <spatial/AdaptiveGrid3D.hpp>
 
@@ -23,6 +25,10 @@ struct RunSnapshot {
     std::shared_ptr<const springls::AdaptiveGrid3D> grid;
     std::shared_ptr<const springls::VolumeF> levelSet;
     springls::Manifold3D manifold;
+    // Mesh tracking: the tracked mesh (base voxels; null for the other methods).
+    std::shared_ptr<const springls::TriangleSurface> trackedMesh;
+    // ... and its fold-over / overlap check, per triangle of trackedMesh (null unless the check is on).
+    std::shared_ptr<const springls::MeshCheck> trackedCheck;
     springls::EnrightMetrics3D metrics;
     uint64_t iteration = 0;
     uint64_t substeps = 0;  // advection sub-steps so far
@@ -72,7 +78,8 @@ public:
     void summaryHeader(std::ostream &out, double period) const override;
     void summary(std::ostream &out, double seconds) const override;
     void progress(std::ostream &out, bool withTime) const override;
-    bool supportsCheckpoints() const override { return true; }
+    // Not for mesh tracking: its mesh is not part of the checkpoint state.
+    bool supportsCheckpoints() const override { return method() != springls::Method3D::MeshTracking; }
     bool saveCheckpoint(const std::filesystem::path &dir, double t, std::string &error) const override;
     bool resume(const std::filesystem::path &stateFile, std::string &error) override;
 

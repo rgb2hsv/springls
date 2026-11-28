@@ -5,6 +5,7 @@
 #include <memory>
 
 #include <cmath>
+#include <numbers>
 
 using namespace springls;
 
@@ -97,7 +98,7 @@ TEST(mogac_translation_moves_centroids)
         CHECK_NEAR(after.cx[l] - before.cx[l], 4.0, 0.5);
         // Against the exact half disk, not the initial pixel count: the diameter falls on a pixel
         // column, so the initial counts are uneven (207 vs 230) by one column.
-        CHECK_NEAR(after.count[l] / (0.5 * 3.14159265 * kRadius * kRadius), 1.0, 0.05);
+        CHECK_NEAR(after.count[l] / (0.5 * std::numbers::pi * kRadius * kRadius), 1.0, 0.05);
     }
 }
 

@@ -69,6 +69,10 @@ bool Experiment::restart(std::string &error)
     for (const Entry *entry : mEntries) {
         Run run;
         run.sim = entry->make(mOptions);
+        if (!mLimits.checkpointTimes.empty() && !run.sim->supportsCheckpoints()) {
+            error = "checkpoints are not supported for " + entry->title;
+            return false;
+        }
         const auto start = std::chrono::steady_clock::now();
         if (!run.sim->init(error)) return false;
         run.seconds = SecondsSince(start);

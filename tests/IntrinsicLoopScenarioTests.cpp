@@ -11,6 +11,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <map>
+#include <numbers>
 #include <random>
 #include <set>
 #include <tuple>
@@ -248,7 +249,7 @@ TEST(rotation_velocity_divergence_free_on_sphere)
 
 TEST(loop_period_is_one_revolution_each_way)
 {
-    constexpr double kPiD = 3.141592653589793;
+    constexpr double kPiD = std::numbers::pi;
     const IntrinsicTriangulation tri = springls_test::DelaunaySurface(springls_test::Icosphere(4));
     LoopScenario scenario;
     std::string error;

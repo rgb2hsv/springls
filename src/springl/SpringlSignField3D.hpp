@@ -101,4 +101,10 @@ private:
     std::vector<int8_t> mCoarseSign;
     size_t mWallCount = 0;
 };
+
+// The grid's level set rebuilt from a field (semi-Lagrangian springls, mesh tracking): phi = sign * min(U, clamp) at
+// the nodes of the finest leaves the surface comes within clamp of; every other leaf becomes a tile of +-band with
+// its side's sign (coarser leaves never hold the surface). Leaves whose nodes all sit at the clamp on one side become
+// tiles too. The caller synchronizes the grid and updates its active set.
+void FillGridFromSignField(AdaptiveGrid3D &grid, const SpringlSignField3D &field, float band, float clamp);
 }  // namespace springls
