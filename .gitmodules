@@ -22,3 +22,6 @@
 [submodule "external/happly"]
 	path = external/happly
 	url = https://github.com/nmwsharp/happly.git
+[submodule "external/meshlet-optimizer"]
+	path = external/meshlet-optimizer
+	url = https://github.com/rgb2hsv/meshlet-optimizer.git

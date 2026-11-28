@@ -33,8 +33,9 @@ the level set from the springls every sub-step, so it has no CFL limit. Enright 
 ## Build
 
 ```bash
-git submodule update --init          # eigen, cereal, kdtree-cpp, happly, tinyvdb, imgui, nanovg, argparse (not recursive)
+git submodule update --init          # eigen, cereal, kdtree-cpp, happly, tinyvdb, imgui, nanovg, argparse, meshlet-optimizer (not recursive)
 git -C external/nanovg submodule update --init external/Vulkan-Headers   # GUI builds: NanoVG's Vulkan backend
+git -C external/meshlet-optimizer submodule update --init   # mesh tracking's charts: meshlet-optimizer's dependencies
 cmake -S . -B build -G Ninja         # Release by default
 cmake --build build
 ```
@@ -105,9 +106,29 @@ registry). Each one has its own program, `build/demo/<scenario>-<domain>-<method
 | dweave | 3d | adaptive | single | enright | semi-lagrangian | `semi-lagrangian-dweave` | `enright-3d-semi-lagrangian-dweave` | Semi-Lagrangian DoubleWeave 3D |
 | levelset | 3d | uniform | single | enright | eulerian | `levelset` | `enright-3d-levelset` | Level Set 3D |
 | levelset | 3d | adaptive | single | enright | eulerian | `adaptive-levelset` | `enright-3d-adaptive-levelset` | Adaptive Level Set 3D |
+| tracked-mesh | 3d | adaptive | single | enright | semi-lagrangian | `mesh-tracking` | `enright-3d-mesh-tracking` | Mesh Tracking 3D |
 | dweave | 3d | adaptive | single | mesh | eulerian | `dweave` | `mesh-3d-dweave` | Mesh DoubleWeave |
 | springls | surf | uniform | multiple | sphere | eulerian | `multi-springls` | `sphere-surf-multi-springls` | Surface Multi-Object Springls |
 | springls | surf | uniform | multiple | stone | eulerian | `multi-springls` | `stone-surf-multi-springls` | Surface Multi-Object Springls |
+
+Mesh tracking (`mesh-tracking`, Enright test only) demonstrates the adaptive remeshing without springls: a
+closed triangle mesh is advected with the flow and kept well shaped by edge splits, collapses and flips (an
+edge is flipped where that raises the smallest angle of its two triangles, the local Delaunay criterion). Its
+topology never changes: where sheets of the mesh come together they stay as they are. The level set, on the
+32^3 to 256^3 octree, is rebuilt from the mesh after every sub-step as the semi-Lagrangian springls rebuild
+theirs (the unsigned distance to the triangles, signed by an exterior flood; no level set equation), so it
+shows the union of the mesh's sheets. The window
+shows either the tracked mesh or the iso-surface, matcap shaded with a wireframe overlay. No checkpoints.
+The remeshing runs in parallel, chart by chart. The charts are made once, from the initial mesh, by
+meshlet-optimizer's meshlet pipeline run to its base level (CVT charts of at most 256 triangles,
+regularized, seams straightened; `--set chartTriangles=N` for another limit, `--set chartFill=F` for the
+share of it each chart aims at (0.5, which sets the chart count; meshlet-optimizer uses 0.375), `--set meshletCharts=0` for
+the raw CVT, `--set chartTriangles=0` for independent sets of operations over the whole mesh). Remeshed
+triangles join the chart they were made from, so the charts deform with the surface; a second pass
+remeshes the band along the chart borders. The tracked mesh is drawn green with a gray wireframe.
+`--set checkMesh=1` checks the mesh after every step for fold-overs (adjacent normals more than
+`foldDegrees`, default 120, apart) and overlapping triangles: the counts are in the panel header and the
+summary, and the offending triangles are drawn in red.
 
 Any other combination (3D multi-object, the `surf` domain) reports
 `not implemented` with the nearest implemented configurations, and exits with code 2. For

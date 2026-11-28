@@ -4,6 +4,7 @@
 #include "Renderer.hpp"
 #include "TriPlanar.hpp"
 
+#include <algorithm>
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
@@ -66,11 +67,12 @@ void DestroyWindow(GLFWwindow *window)
     glfwTerminate();
 }
 
-bool StartRecorder(FrameRecorder &recorder, size_t runCount, const DisplayOptions &options)
+bool StartRecorder(FrameRecorder &recorder, const ExperimentSnapshot &snapshot, const Visibility &visibility, const DisplayOptions &options)
 {
     if (options.framesDir.empty()) return true;
     int width = 0, height = 0;
-    Renderer::ImageSize(runCount, options.framePanelSize, width, height);
+    const std::vector<Renderer::PanelView> views = Renderer::Views(snapshot, visibility);
+    Renderer::ImageSize(views.size(), options.framePanelSize, width, height);
     std::string error;
     if (!recorder.init(options.framesDir, width, height, error)) {
         std::cerr << "error: " << error << std::endl;
@@ -201,7 +203,7 @@ int RunOffscreenFrames(Experiment &experiment, const DisplayOptions &options)
         if (!renderer.init(options.fontFile, error)) {
             std::cerr << "error: " << error << std::endl;
             status = 1;
-        } else if (!StartRecorder(recorder, experiment.runs().size(), options) ||
+        } else if (!StartRecorder(recorder, toybox::Snapshot3D(experiment), visibility, options) ||
                    !Capture(recorder, renderer, toybox::Snapshot3D(experiment), visibility, camera)) {
             status = 1;
         } else {
@@ -261,10 +263,11 @@ int RunGui(Experiment &experiment, const DisplayOptions &options)
         bool resampling = true;
         int elementChoice = (experiment.options().elementType == ElementType::Quad) ? 0 : 1;
         int pacingChoice = static_cast<int>(experiment.pacing());  // the UI's copy; changes go through the stepper
-        bool hasDual = false;
+        bool hasDual = false, hasSpringls = false, hasTracked = false;
         for (const Run &run : experiment.runs()) {
             const Method3D m = run.as<toybox::Enright3DSimulation>()->method();
             hasDual |= (m == Method3D::Dweave || m == Method3D::AdaptiveDweave || m == Method3D::SemiLagrangianDweave);
+            (m == Method3D::MeshTracking ? hasTracked : hasSpringls) = true;
         }
         enum class Drag {
             None,
@@ -280,7 +283,7 @@ int RunGui(Experiment &experiment, const DisplayOptions &options)
             std::cerr << "error: " << error << std::endl;
             status = 1;
         } else {
-            recording = StartRecorder(recorder, shown.runs.size(), options) && Capture(recorder, renderer, shown, visibility, camera);
+            recording = StartRecorder(recorder, shown, visibility, options) && Capture(recorder, renderer, shown, visibility, camera);
             if (!options.framesDir.empty() && !recording) status = 1;
         }
         Stepper stepper(experiment, !paused && status == 0, recording);
@@ -292,7 +295,7 @@ int RunGui(Experiment &experiment, const DisplayOptions &options)
             });
             summaryPrinted = false;
             if (stepper.fetch(shown) && recording) {
-                recording = StartRecorder(recorder, shown.runs.size(), options) && Capture(recorder, renderer, shown, visibility, camera);
+                recording = StartRecorder(recorder, shown, visibility, options) && Capture(recorder, renderer, shown, visibility, camera);
             }
         };
         while (status == 0 && !glfwWindowShouldClose(window)) {
@@ -349,25 +352,37 @@ int RunGui(Experiment &experiment, const DisplayOptions &options)
                             [&](toybox::Simulation &sim) { static_cast<toybox::Enright3DSimulation &>(sim).sim().setResamplingEnabled(resampling); });
                     });
                 }
-                ImGui::TextUnformatted("Springl elements (restarts):");
-                const int previous = elementChoice;
-                ImGui::RadioButton("Quads", &elementChoice, 0);
-                ImGui::SameLine();
-                ImGui::RadioButton("Triangles", &elementChoice, 1);
-                if (elementChoice != previous) {
-                    stepper.exclusive([&](Experiment &e) { e.options().elementType = (elementChoice == 0) ? ElementType::Quad : ElementType::Triangle; });
-                    restart();
+                if (hasSpringls) {
+                    ImGui::TextUnformatted("Springl elements (restarts):");
+                    const int previous = elementChoice;
+                    ImGui::RadioButton("Quads", &elementChoice, 0);
+                    ImGui::SameLine();
+                    ImGui::RadioButton("Triangles", &elementChoice, 1);
+                    if (elementChoice != previous) {
+                        stepper.exclusive([&](Experiment &e) { e.options().elementType = (elementChoice == 0) ? ElementType::Quad : ElementType::Triangle; });
+                        restart();
+                    }
                 }
             }
             if (ImGui::CollapsingHeader("Visualization", ImGuiTreeNodeFlags_DefaultOpen)) {
-                ImGui::Checkbox("IsoSurface", &visibility.isoSurface);
-                ImGui::Checkbox(hasDual ? "Primal Springls" : "Springls", &visibility.primal);
-                if (hasDual) ImGui::Checkbox("Dual Springls", &visibility.dual);
-                ImGui::Checkbox("Particles", &visibility.particles);
-                ImGui::Checkbox("Capsules", &visibility.capsules);
-                // Leave room for the label to the right of the slider.
-                ImGui::SetNextItemWidth(-(ImGui::CalcTextSize("Capsule Radius").x + ImGui::GetStyle().ItemInnerSpacing.x));
-                ImGui::SliderFloat("Capsule Radius", &visibility.capsuleRadius, 0.0f, 1.5f, "%.2f");
+                if (hasTracked) {
+                    // Mesh tracking shows one surface, with its wireframe.
+                    int shown = visibility.trackedSurface ? 0 : 1;
+                    ImGui::RadioButton("Tracked mesh", &shown, 0);
+                    ImGui::SameLine();
+                    ImGui::RadioButton("Iso-surface", &shown, 1);
+                    visibility.trackedSurface = shown == 0;
+                }
+                if (!hasTracked || hasSpringls) ImGui::Checkbox("IsoSurface", &visibility.isoSurface);
+                if (hasSpringls) {
+                    ImGui::Checkbox(hasDual ? "Primal Springls" : "Springls", &visibility.primal);
+                    if (hasDual) ImGui::Checkbox("Dual Springls", &visibility.dual);
+                    ImGui::Checkbox("Particles", &visibility.particles);
+                    ImGui::Checkbox("Capsules", &visibility.capsules);
+                    // Leave room for the label to the right of the slider.
+                    ImGui::SetNextItemWidth(-(ImGui::CalcTextSize("Capsule Radius").x + ImGui::GetStyle().ItemInnerSpacing.x));
+                    ImGui::SliderFloat("Capsule Radius", &visibility.capsuleRadius, 0.0f, 1.5f, "%.2f");
+                }
             }
             if (ImGui::CollapsingHeader("Timing", ImGuiTreeNodeFlags_DefaultOpen)) {
                 for (const RunSnapshot &run : shown.runs) {
@@ -421,7 +436,8 @@ int RunGui(Experiment &experiment, const DisplayOptions &options)
 
             // Orbit / pan / zoom on the panels, only for input ImGui does not want.
             const Rect view{kSidebarWidth, 0.0f, std::max(0.0f, winW - kSidebarWidth - kSliceSidebarWidth), static_cast<float>(winH)};
-            const std::vector<Rect> panels = Renderer::Layout(shown.runs.size(), view);
+            const std::vector<Renderer::PanelView> views = Renderer::Views(shown, visibility);
+            const std::vector<Rect> panels = Renderer::Layout(views.size(), view);
             const ImVec2 cursor = io.MousePos;
             bool hovered = false;
             for (const Rect &p : panels) hovered |= p.contains(cursor.x, cursor.y);

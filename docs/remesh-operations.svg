@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1140" height="400" viewBox="0 0 1140 400">
+<rect width="1140" height="400" fill="#1E1F24"/>
+<rect x="14" y="14" width="364" height="344" rx="8" fill="#15161A"/>
+<text x="28.0" y="40.0" font-family="Inter, Helvetica, Arial, sans-serif" font-size="15" fill="#E6E6E6" text-anchor="start" font-weight="600">(a) Split: an edge longer than 1.5 L</text>
+<rect x="392" y="14" width="364" height="344" rx="8" fill="#15161A"/>
+<text x="406.0" y="40.0" font-family="Inter, Helvetica, Arial, sans-serif" font-size="15" fill="#E6E6E6" text-anchor="start" font-weight="600">(b) Collapse: an edge shorter than 0.5 L</text>
+<rect x="770" y="14" width="364" height="344" rx="8" fill="#15161A"/>
+<text x="784.0" y="40.0" font-family="Inter, Helvetica, Arial, sans-serif" font-size="15" fill="#E6E6E6" text-anchor="start" font-weight="600">(c) Flip: the smallest angle rises</text>
+<polygon points="111.62,107.48 280.38,95.07 191.04,50.40" fill="#2A2D36" fill-opacity="1.0" stroke="#8A93A6" stroke-width="1.2" stroke-linejoin="round"/>
+<polygon points="280.38,95.07 111.62,107.48 203.45,159.60" fill="#2A2D36" fill-opacity="1.0" stroke="#8A93A6" stroke-width="1.2" stroke-linejoin="round"/>
+<line x1="111.62" y1="107.48" x2="280.38" y2="95.07" stroke="#E048B8" stroke-width="3.2" stroke-linecap="round" opacity="1.0"/>
+<text x="196.0" y="182.0" font-family="Inter, Helvetica, Arial, sans-serif" font-size="12" fill="#A8A8B0" text-anchor="middle" font-weight="400">|pq| = 3.41 L</text>
+<line x1="344.00" y1="150.00" x2="344.00" y2="202.00" stroke="#A8A8B0" stroke-width="1.6" stroke-linecap="round" opacity="1.0"/>
+<polygon points="344.00,210.00 340.64,202.00 347.36,202.00" fill="#A8A8B0" fill-opacity="1.0" stroke="none" stroke-width="0.0" stroke-linejoin="round"/>
+<polygon points="111.62,263.48 196.00,257.28 191.04,206.40" fill="#2A2D36" fill-opacity="1.0" stroke="#8A93A6" stroke-width="1.2" stroke-linejoin="round"/>
+<polygon points="196.00,257.28 280.38,251.07 191.04,206.40" fill="#2A2D36" fill-opacity="1.0" stroke="#8A93A6" stroke-width="1.2" stroke-linejoin="round"/>
+<polygon points="280.38,251.07 196.00,257.28 203.45,315.60" fill="#2A2D36" fill-opacity="1.0" stroke="#8A93A6" stroke-width="1.2" stroke-linejoin="round"/>
+<polygon points="196.00,257.28 111.62,263.48 203.45,315.60" fill="#2A2D36" fill-opacity="1.0" stroke="#8A93A6" stroke-width="1.2" stroke-linejoin="round"/>
+<line x1="196.00" y1="257.28" x2="191.04" y2="206.40" stroke="#7BD88F" stroke-width="3.0" stroke-linecap="round" opacity="1.0"/>
+<line x1="196.00" y1="257.28" x2="203.45" y2="315.60" stroke="#7BD88F" stroke-width="3.0" stroke-linecap="round" opacity="1.0"/>
+<circle cx="196.00" cy="257.28" r="5" fill="#F5C542" stroke="none" stroke-width="0.0"/>
+<text x="196.0" y="344.0" font-family="Inter, Helvetica, Arial, sans-serif" font-size="12" fill="#A8A8B0" text-anchor="middle" font-weight="400">midpoint m, 4 triangles</text>
+<polygon points="581.23,104.59 625.27,81.89 594.88,50.40" fill="#2A2D36" fill-opacity="1.0" stroke="#8A93A6" stroke-width="1.2" stroke-linejoin="round"/>
+<polygon points="581.23,104.59 594.88,50.40 551.75,52.70" fill="#2A2D36" fill-opacity="1.0" stroke="#8A93A6" stroke-width="1.2" stroke-linejoin="round"/>
+<polygon points="581.23,104.59 551.75,52.70 564.45,102.62" fill="#2A2D36" fill-opacity="1.0" stroke="#8A93A6" stroke-width="1.2" stroke-linejoin="round"/>
+<polygon points="564.45,102.62 551.75,52.70 518.15,80.95" fill="#2A2D36" fill-opacity="1.0" stroke="#8A93A6" stroke-width="1.2" stroke-linejoin="round"/>
+<polygon points="564.45,102.62 518.15,80.95 523.34,124.11" fill="#2A2D36" fill-opacity="1.0" stroke="#8A93A6" stroke-width="1.2" stroke-linejoin="round"/>
+<polygon points="564.45,102.62 523.34,124.11 549.65,159.60" fill="#2A2D36" fill-opacity="1.0" stroke="#8A93A6" stroke-width="1.2" stroke-linejoin="round"/>
+<polygon points="564.45,102.62 549.65,159.60 592.86,151.93" fill="#2A2D36" fill-opacity="1.0" stroke="#8A93A6" stroke-width="1.2" stroke-linejoin="round"/>
+<polygon points="564.45,102.62 592.86,151.93 581.23,104.59" fill="#2A2D36" fill-opacity="1.0" stroke="#8A93A6" stroke-width="1.2" stroke-linejoin="round"/>
+<polygon points="581.23,104.59 592.86,151.93 629.85,127.22" fill="#2A2D36" fill-opacity="1.0" stroke="#8A93A6" stroke-width="1.2" stroke-linejoin="round"/>
+<polygon points="581.23,104.59 629.85,127.22 625.27,81.89" fill="#2A2D36" fill-opacity="1.0" stroke="#8A93A6" stroke-width="1.2" stroke-linejoin="round"/>
+<line x1="564.45" y1="102.62" x2="581.23" y2="104.59" stroke="#E048B8" stroke-width="3.2" stroke-linecap="round" opacity="1.0"/>
+<text x="574.0" y="182.0" font-family="Inter, Helvetica, Arial, sans-serif" font-size="12" fill="#A8A8B0" text-anchor="middle" font-weight="400">|ab| = 0.34 L</text>
+<line x1="722.00" y1="150.00" x2="722.00" y2="202.00" stroke="#A8A8B0" stroke-width="1.6" stroke-linecap="round" opacity="1.0"/>
+<polygon points="722.00,210.00 718.64,202.00 725.36,202.00" fill="#A8A8B0" fill-opacity="1.0" stroke="none" stroke-width="0.0" stroke-linejoin="round"/>
+<polygon points="572.84,259.61 625.27,237.89 594.88,206.40" fill="#2A2D36" fill-opacity="1.0" stroke="#8A93A6" stroke-width="1.2" stroke-linejoin="round"/>
+<polygon points="572.84,259.61 594.88,206.40 551.75,208.70" fill="#2A2D36" fill-opacity="1.0" stroke="#8A93A6" stroke-width="1.2" stroke-linejoin="round"/>
+<polygon points="572.84,259.61 551.75,208.70 518.15,236.95" fill="#2A2D36" fill-opacity="1.0" stroke="#8A93A6" stroke-width="1.2" stroke-linejoin="round"/>
+<polygon points="572.84,259.61 518.15,236.95 523.34,280.11" fill="#2A2D36" fill-opacity="1.0" stroke="#8A93A6" stroke-width="1.2" stroke-linejoin="round"/>
+<polygon points="572.84,259.61 523.34,280.11 549.65,315.60" fill="#2A2D36" fill-opacity="1.0" stroke="#8A93A6" stroke-width="1.2" stroke-linejoin="round"/>
+<polygon points="572.84,259.61 549.65,315.60 592.86,307.93" fill="#2A2D36" fill-opacity="1.0" stroke="#8A93A6" stroke-width="1.2" stroke-linejoin="round"/>
+<polygon points="572.84,259.61 592.86,307.93 629.85,283.22" fill="#2A2D36" fill-opacity="1.0" stroke="#8A93A6" stroke-width="1.2" stroke-linejoin="round"/>
+<polygon points="572.84,259.61 629.85,283.22 625.27,237.89" fill="#2A2D36" fill-opacity="1.0" stroke="#8A93A6" stroke-width="1.2" stroke-linejoin="round"/>
+<circle cx="572.84" cy="259.61" r="5" fill="#F5C542" stroke="none" stroke-width="0.0"/>
+<text x="574.0" y="344.0" font-family="Inter, Helvetica, Arial, sans-serif" font-size="12" fill="#A8A8B0" text-anchor="middle" font-weight="400">a, b merged at the midpoint</text>
+<polygon points="828.30,106.71 943.47,159.60 1075.70,102.44" fill="#2A2D36" fill-opacity="1.0" stroke="#8A93A6" stroke-width="1.2" stroke-linejoin="round"/>
+<polygon points="828.30,106.71 1075.70,102.44 956.27,50.40" fill="#2A2D36" fill-opacity="1.0" stroke="#8A93A6" stroke-width="1.2" stroke-linejoin="round"/>
+<line x1="828.30" y1="106.71" x2="1075.70" y2="102.44" stroke="#E048B8" stroke-width="3.2" stroke-linecap="round" opacity="1.0"/>
+<text x="952.0" y="182.0" font-family="Inter, Helvetica, Arial, sans-serif" font-size="12" fill="#A8A8B0" text-anchor="middle" font-weight="400">smallest angle 22°</text>
+<line x1="1100.00" y1="150.00" x2="1100.00" y2="202.00" stroke="#A8A8B0" stroke-width="1.6" stroke-linecap="round" opacity="1.0"/>
+<polygon points="1100.00,210.00 1096.64,202.00 1103.36,202.00" fill="#A8A8B0" fill-opacity="1.0" stroke="none" stroke-width="0.0" stroke-linejoin="round"/>
+<polygon points="828.30,262.71 943.47,315.60 956.27,206.40" fill="#2A2D36" fill-opacity="1.0" stroke="#8A93A6" stroke-width="1.2" stroke-linejoin="round"/>
+<polygon points="943.47,315.60 1075.70,258.44 956.27,206.40" fill="#2A2D36" fill-opacity="1.0" stroke="#8A93A6" stroke-width="1.2" stroke-linejoin="round"/>
+<line x1="943.47" y1="315.60" x2="956.27" y2="206.40" stroke="#7BD88F" stroke-width="3.0" stroke-linecap="round" opacity="1.0"/>
+<text x="952.0" y="344.0" font-family="Inter, Helvetica, Arial, sans-serif" font-size="12" fill="#A8A8B0" text-anchor="middle" font-weight="400">smallest angle 47°</text>
+<text x="570.0" y="384.0" font-family="Inter, Helvetica, Arial, sans-serif" font-size="12" fill="#A8A8B0" text-anchor="middle" font-weight="400">L: the target edge (the median edge at the start). A collapse keeps the link condition and never leaves a vertex of valence 3; flips stay inside a region.</text>
+</svg>

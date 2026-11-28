@@ -28,9 +28,9 @@ size_t CountDomain(Domain domain, Scenario scenario)
 TEST(registry_lists_every_implemented_configuration)
 {
     const Registry &registry = Registry::Instance();
-    CHECK(registry.entries().size() == 23);
+    CHECK(registry.entries().size() == 24);
     CHECK(CountDomain(Domain::D2, Scenario::Enright) == 13);
-    CHECK(CountDomain(Domain::D3, Scenario::Enright) == 7);
+    CHECK(CountDomain(Domain::D3, Scenario::Enright) == 8);
     CHECK(CountDomain(Domain::D3, Scenario::Mesh) == 1);
     CHECK(CountDomain(Domain::Surface, Scenario::Sphere) == 1);
     CHECK(CountDomain(Domain::Surface, Scenario::Stone) == 1);

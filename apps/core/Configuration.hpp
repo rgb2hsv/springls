@@ -9,7 +9,8 @@ namespace toybox
 enum class Representation {
     Springls,
     Dweave,
-    LevelSet
+    LevelSet,
+    TrackedMesh   // a closed triangle mesh tracked with adaptive remeshing (no springls)
 };
 enum class Domain {
     D2,
@@ -28,7 +29,7 @@ enum class Scenario {
     Enright,
     Mesh,
     Sphere,
-    Stone  // the sphere scenario on the stone (assets/model/stone.ply) instead of the icosphere
+    Stone    // the sphere scenario on the stone (assets/model/stone.ply) instead of the icosphere
 };
 // Eulerian: the level set evolves on its grid toward the springls each sub-step (CFL-limited).
 // Semi-Lagrangian: the level set is rebuilt from the springls each sub-step.
@@ -47,7 +48,7 @@ struct Configuration {
     bool operator==(const Configuration &) const = default;
 };
 
-// Command-line keys: springls|dweave|levelset, 2d|3d|surface, uniform|adaptive, single|multiple,
+// Command-line keys: springls|dweave|levelset|tracked-mesh, 2d|3d|surface, uniform|adaptive, single|multiple,
 // enright|mesh|sphere|stone, eulerian|semi-lagrangian.
 const char *Key(Representation value);
 const char *Key(Domain value);
@@ -63,7 +64,8 @@ bool Parse(const std::string &key, Scenario &value);
 bool Parse(const std::string &key, InterfaceTracking &value);
 
 // Every value of each axis, in declaration order.
-constexpr Representation kRepresentations[] = {Representation::Springls, Representation::Dweave, Representation::LevelSet};
+constexpr Representation kRepresentations[] = {Representation::Springls, Representation::Dweave, Representation::LevelSet,
+                                               Representation::TrackedMesh};
 constexpr Domain kDomains[] = {Domain::D2, Domain::D3, Domain::Surface};
 constexpr GridType kGridTypes[] = {GridType::Uniform, GridType::Adaptive};
 constexpr Objects kObjects[] = {Objects::Single, Objects::Multiple};

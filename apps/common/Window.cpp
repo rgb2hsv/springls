@@ -57,6 +57,7 @@ int Run3D(const Invocation &inv, Experiment &experiment)
         bool *flag = layer == "iso"      ? &display.visibility.isoSurface
                      : layer == "primal" ? &display.visibility.primal
                      : layer == "dual"   ? &display.visibility.dual
+                     : layer == "tracked"  ? &display.visibility.trackedSurface
                                          : &display.visibility.particles;
         *flag = false;
     }

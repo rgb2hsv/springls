@@ -48,6 +48,7 @@
           <li><a href="#m-3d"><span class="num">3.12</span>Extension to 3D</a></li>
           <li><a href="#m-levelset-methods"><span class="num">3.13</span>Level sets and MOGAC</a></li>
           <li><a href="#intrinsic"><span class="num">3.14</span>Intrinsic springls</a></li>
+          <li><a href="#mesh-tracking"><span class="num">3.15</span>Mesh tracking</a></li>
         </ol>
       </li>
       <li><a href="#results"><span class="num">4</span>Results</a>
@@ -59,7 +60,8 @@
           <li><a href="#r-sl3d"><span class="num">4.5</span>CFL limit in 3D</a></li>
           <li><a href="#r-multi2d"><span class="num">4.6</span>2D multiple objects</a></li>
           <li><a href="#r-intrinsic"><span class="num">4.7</span>Intrinsic springls</a></li>
-          <li><a href="#r-validation"><span class="num">4.8</span>Validation</a></li>
+          <li><a href="#r-mesh-tracking"><span class="num">4.8</span>Mesh tracking</a></li>
+          <li><a href="#r-validation"><span class="num">4.9</span>Validation</a></li>
         </ol>
       </li>
       <li><a href="#conclusion"><span class="num">5</span>Conclusion</a></li>
@@ -111,7 +113,10 @@
     6–28× fewer sub-steps when the CFL limit binds. <strong>Intrinsic springls</strong> carry the
     same method onto curved triangle-mesh surfaces: springls move along an adaptively refined intrinsic
     Delaunay triangulation by the discrete exponential map, and the level set is rebuilt on its
-    vertexes every sub-step.</p>
+    vertexes every sub-step. <strong>Mesh tracking</strong> carries the interface on one closed triangle mesh
+    instead, kept well shaped by edge splits, collapses and Delaunay flips and never changing topology, with
+    its level set rebuilt from the mesh by the same semi-Lagrangian rule; it returns the 3D sphere within
+    0.3% volume with an eighth of the semi-Lagrangian DoubleWeave's mean shape error.</p>
   </div>
   <div class="pills">
     <span class="pill">C++17</span><span class="pill">Eigen 3.4</span><span class="pill">OpenMP</span>
@@ -1026,6 +1031,126 @@ stone 2.4× faster on 12 threads than the serial code (130.6 s → 51.3 s, 118.1
 then depend slightly on the thread count, through the order of floating-point sums; one thread is
 deterministic.</p>
 
+<h3 id="mesh-tracking"><span class="num">3.15</span>Mesh tracking with adaptive remeshing<a class="anchor" href="#mesh-tracking" aria-label="Link to this section"></a></h3>
+
+<p>Mesh tracking (<code>mesh-tracking</code>, <code>MeshTracking3D</code>) follows the interface with one closed
+triangle mesh and no springls: the mesh is moved with the flow and remeshed to keep its triangles well shaped,
+as in Wojtan et al. <sup class="ref"><a href="#ref-18">[18]</a></sup>, but its topology never changes. It shows the
+remesher on its own, on the 3D Enright test only. The level set is the adaptive octree of
+<a href="#m-adaptive">§3.10</a> (32³ to 256³ equivalent), <em>rebuilt from the mesh</em> after every sub-step
+by the semi-Lagrangian rule of <a href="#m-sl">§3.11</a> with the mesh's triangles in the springls' place
+(<a href="#mt-levelset">§3.15.3</a>), for display and metrics.</p>
+
+<pre class="pseudo"><code><span class="k">procedure</span> <span class="f">MeshTracking3D::step</span>()
+  <span class="k">for</span> each sub-step <span class="k">do</span>
+    Δt ← maxStepVoxels / max vertex speed over [t, t + Δt]   <span class="c">// capped by the schedule</span>
+    every vertex: RK4 through the exact velocity
+    fit the octree's band around the mesh
+    φ ← SpringlSignField3D(the mesh's triangles)              <span class="c">// §3.15.3: semi-Lagrangian, no PDE</span>
+    extract the iso-surface
+  RemeshSurfaceByCharts(mesh, L)       <span class="c">// §3.15.1–2: the charts (made once, at init) in parallel, then their borders</span>
+  drop vertexes no triangle uses;  optionally CheckMesh            <span class="c">// §3.15.4</span></code></pre>
+
+<h4 id="mt-remesh"><span class="num">3.15.1</span>Quality remeshing<a class="anchor" href="#mt-remesh" aria-label="Link to this section"></a></h4>
+
+<p>The mesh keeps one target edge length <strong>L</strong>, the median edge of the initial icosphere (5
+subdivisions, 20,480 triangles). Each step runs up to four passes of three operations
+(<code>AdaptiveRemesh3D</code>, <a href="#fig-remesh-ops">Figure 11</a>), stopping early when a pass changes nothing:</p>
+<ul>
+<li><strong>Split</strong> every edge longer than 1.5 L at its midpoint: its two triangles become four.</li>
+<li><strong>Collapse</strong> every edge shorter than 0.5 L, and the shortest edge of every triangle with an angle
+under 15° (a sliver), into its midpoint: its two triangles vanish. A collapse is refused when it would
+break the mesh: the two ends must share exactly the two vertexes opposite the edge (the link condition),
+and neither end may have three or fewer neighbors, which would fold a tetrahedron into a two-triangle
+pillow.</li>
+<li><strong>Flip</strong> an edge when the smallest angle of its two triangles grows by flipping it: the local
+Delaunay criterion (maximizing the smallest angle of the two triangles is, for a convex quadrilateral, flipping
+when the two angles opposite the edge sum to more than 180°).</li>
+</ul>
+<p>None of the three changes the mesh's topology. Triangles carry a region label (the charts of §3.15.2). Flips stay
+inside one region, and a vertex on a region border only moves along a border edge, so borders survive
+remeshing (<code>keepRegionBorders</code>; the chart borders of §3.15.2 turn it off).</p>
+
+<figure id="fig-remesh-ops">
+  <img src="remesh-operations.svg" width="1140" height="400" alt="The three remeshing operations, before and after: (a) a long edge split at its midpoint into four triangles, (b) a short edge collapsed to its midpoint, its two triangles removed, (c) the diagonal of two slivers flipped, raising the smallest angle from 22 to 47 degrees" loading="lazy">
+  <figcaption><span class="fig">Figure 11.</span> The quality operations. (a) An edge longer than 1.5 L is split at
+  its midpoint. (b) An edge shorter than 0.5 L (or a sliver's shortest edge) collapses into its midpoint.
+  (c) An edge is flipped when that raises the smallest angle of its two triangles, here from 22° to 47°.
+  Computed by <code>docs/make_remesh_diagrams.py</code>.</figcaption>
+</figure>
+
+<h4 id="mt-parallel"><span class="num">3.15.2</span>Remeshing in parallel<a class="anchor" href="#mt-parallel" aria-label="Link to this section"></a></h4>
+
+<p>Two operations may run at once only if they change nothing the other reads. The remesher finds such
+<strong>independent sets</strong> in two ways (<a href="#fig-remesh-parallel">Figure 12</a>).</p>
+
+<p><strong>By claims.</strong> Each pass finds every candidate of one kind and checks it, in parallel. Each
+candidate then claims what it would change: a split its two triangles, a collapse the triangles around
+both of its ends, a flip its four vertexes. Claims are atomic minimums of the candidate's rank (longest
+split first, shortest collapse first, largest flip gain first), so where two candidates overlap the more
+urgent one holds the claim. Every candidate that holds all of its claims is applied at once, in parallel;
+the rest wait for the next pass. Edges and vertex rings come from tables rebuilt by sorting half-edges in
+parallel, with no hash maps.</p>
+
+<p><strong>By charts</strong> (the default). The charts are made once, from the initial mesh, as
+meshlet-optimizer's base meshlets: its pipeline run to the base level with its default parameters except
+one, at most 256 triangles per chart. That is the restricted centroidal Voronoi tessellation of
+<code>CvtSegmentation</code> <sup class="ref"><a href="#ref-33">[33]</a></sup> with ⌈|F| / (<code>chartFill</code> · 256)⌉
+blue-noise seeds, so each chart aims at half the cap (<code>chartFill</code> = 0.5 here; meshlet-optimizer's
+default is 0.375), refined by 4 Lloyd and 40 L-BFGS iterations on the CVT energy, every vertex labeled by its
+nearest seed; its label regularization (an opening removes thin bands, region competition smooths the borders,
+charts that are not disks or have over 256 triangles are split); the base level's face labels, with isolated
+faces joined to a neighbor; and the borders between junctions straightened along mesh edges. The charts are
+the mesh's regions from then on: a triangle made from a chart's triangles (by a split, flip or collapse) joins that chart. Each pass has two parts. First every chart is copied out of the mesh as
+it was at the start of the pass, with the ring of triangles around it, which is <em>frozen</em> (no operation
+may change a frozen triangle or move or remove one of its vertexes, and no flip may join two vertexes of
+frozen triangles, an edge a neighboring chart could make too); it is remeshed by the serial remesher on its
+own thread and written back into room reserved with atomic counters. Chart borders are not changed here, so
+the pieces meet edge to edge. Then the band of triangles with a vertex on a chart border is remeshed by
+claims, everything else frozen, with the region rule off: border edges are split, flipped and collapsed like
+any other edge, and each new triangle takes the chart of the triangle it replaces, so the borders move with
+the remeshing instead of keeping the slivers they would otherwise collect. They become slightly ragged:
+single triangles switch charts where a border edge flips. <code>--set chartTriangles=0</code> uses the claims
+for the whole mesh, and <code>--set meshletCharts=0</code> makes the charts by the raw CVT (blue-noise seeds
+and nearest-seed labels only).</p>
+
+<figure id="fig-remesh-parallel">
+  <img src="remesh-parallel.svg" width="1140" height="430" alt="Parallel remeshing on a stretched planar mesh: (a) long edges claiming their triangles, the winners split at once and the rest waiting, (b) the mesh cut into charts with one chart outlined and its frozen ring in grey, (c) the band of triangles along the chart borders, the rest frozen in grey" loading="lazy">
+  <figcaption><span class="fig">Figure 12.</span> Independent sets. (a) On a mesh stretched 1.6× in its middle,
+  every edge longer than 1.5 L is a split candidate. Candidates claim their two triangles longest first;
+  the green ones hold both claims and are split together, the dashed ones wait for the next pass. (b) Charts:
+  each chart is remeshed on its own thread inside a frozen ring (grey, for the outlined chart). (c) Then the
+  band of triangles along the chart borders is remeshed by claims, the rest frozen. The charts here are a 2D
+  Lloyd stand-in for the base meshlets. Computed by <code>docs/make_remesh_diagrams.py</code>.</figcaption>
+</figure>
+
+<h4 id="mt-levelset"><span class="num">3.15.3</span>The level set from the mesh<a class="anchor" href="#mt-levelset" aria-label="Link to this section"></a></h4>
+
+<p>After every sub-step the octree's band is fitted around the mesh's vertexes and φ is rebuilt from the mesh
+with <code>SpringlSignField3D</code>, exactly as the semi-Lagrangian DoubleWeave rebuilds it from its springls
+(<a href="#m-sl">§3.11</a>, <a href="#fig-sl">Figure 2</a>): each triangle is one element, the fan of
+its three corners about its centroid, so U is the distance to the mesh; nodes within the capsule radius
+(<code>capsuleCells</code> = 1.5 finest cells) are walls, the exterior floods in from the domain border, and the
+sign sweeps upwind into the walls so the two fronts meet on the mesh. φ = sign · min(U, 4 finest cells) on the
+finest leaves (<code>FillGridFromSignField</code>, shared with the semi-Lagrangian DoubleWeave); coarser leaves are
+tiles of ± the band. There is no level-set equation and so no CFL limit, and the level set needs no orientation
+from the mesh.</p>
+
+<p>The mesh's topology never changes. Where two sheets of the mesh come within two capsules of each other the
+rule fuses them, so the level set shows their union; the mesh itself is left as it is, and where its sheets
+pass through each other they overlap (counted by <a href="#mt-check">§3.15.4</a>).</p>
+
+<h4 id="mt-check"><span class="num">3.15.4</span>Checking the mesh<a class="anchor" href="#mt-check" aria-label="Link to this section"></a></h4>
+
+<p><code>--set checkMesh=1</code> checks the mesh after every step (<code>CheckMesh</code>, <code>MeshCheck3D</code>) for
+<strong>fold-overs</strong>, edges whose two triangles' normals are more than 120° apart
+(<code>foldDegrees</code>), and <strong>overlaps</strong>, pairs of triangles that share no vertex but intersect.
+Overlaps are found by binning triangles by bounding box into a grid of cells twice the mean edge, testing
+every pair once (in the lowest cell both boxes cover) in parallel, with a separating-axis test (the two
+normals, the nine edge cross products, and the six in-plane edge normals). Edges with other than two
+triangles are counted too. The counts appear in the panel header and the run summary, and the triangles
+involved are drawn in red. Nothing is repaired: the check only reports.</p>
+
 </section>
 
 <!-- ============================================================ 4 -->
@@ -1055,7 +1180,8 @@ current default (no cap, 2 finest cells) changes the adaptive springl numbers.</
 equivalent) for the adaptive ones, period T = 3, quad springls, 8 OpenMP threads (16 for the
 semi-Lagrangian run), produced with <code>enright-3d-&lt;method&gt; --no-gui --frames &lt;dir&gt;</code> (for
 <code>enright-3d-semi-lagrangian-dweave</code> with <code>-d 3 --max-time-step 0.00125 --substeps-per-step 0</code>, the
-Eulerian defaults).</p>
+Eulerian defaults). Mesh tracking uses the same adaptive grid (32³, depth 3) and an icosphere of 20,480
+triangles, on 8 threads of a 20-thread CPU: <code>enright-3d-mesh-tracking --no-gui -j 8 --frames &lt;dir&gt; --csv &lt;file&gt;</code>.</p>
 
 <h3 id="r-2d"><span class="num">4.2</span>2D Enright test<a class="anchor" href="#r-2d" aria-label="Link to this section"></a></h3>
 
@@ -1081,7 +1207,7 @@ Eulerian defaults).</p>
     <figcaption>Semi-Lagrangian DoubleWeave <a href="videos/semi-lagrangian-doubleweave.mp4">mp4</a></figcaption>
   </figure>
 </div>
-<p class="gallery-caption"><span class="fig">Figure 11.</span> 2D Enright test, 64² base grid, T = 8. Posters show t = 1.73.</p>
+<p class="gallery-caption"><span class="fig">Figure 13.</span> 2D Enright test, 64² base grid, T = 8. Posters show t = 1.73.</p>
 
 <div class="table-wrap"><table>
 <caption><span class="fig">Table 2.</span> 2D errors at t = T (shape errors in domain units; the circle has radius 0.15).</caption>
@@ -1156,7 +1282,7 @@ error and a lower max shape error.</p>
     <figcaption>Semi-Lagrangian DoubleWeave 3D <a href="videos/3d-semi-lagrangian-doubleweave.mp4">mp4</a></figcaption>
   </figure>
 </div>
-<p class="gallery-caption"><span class="fig">Figure 12.</span> 3D Enright test, T = 3, quad springls. Posters show t = T/2, when the sphere is stretched into a thin, curled disk.</p>
+<p class="gallery-caption"><span class="fig">Figure 14.</span> 3D Enright test, T = 3, quad springls. Posters show t = T/2, when the sphere is stretched into a thin, curled disk.</p>
 
 <div class="table-wrap"><table>
 <caption><span class="fig">Table 5.</span> 3D errors at t = T (shape errors in domain units; the sphere has radius 0.15).</caption>
@@ -1239,7 +1365,7 @@ enright-2d-adaptive-multi-springls --no-gui -j 4 -d 4 --frames &lt;dir&gt;</code
     <figcaption>Adaptive Multi-Object Springls <a href="videos/adaptive-multi-springls.mp4">mp4</a></figcaption>
   </figure>
 </div>
-<p class="gallery-caption"><span class="fig">Figure 13.</span> 2D multi-object Enright test, four
+<p class="gallery-caption"><span class="fig">Figure 15.</span> 2D multi-object Enright test, four
 regions, T = 8; uniform 256², adaptive 32² at depth 4. Posters show t = 1.73.</p>
 
 <div class="table-wrap"><table>
@@ -1350,7 +1476,7 @@ show the flow easing to rest at T/2 and turning back.</p>
     <figcaption>Stone, Hodge flow <a href="videos/stone-surf-springls.mp4">mp4</a></figcaption>
   </figure>
 </div>
-<p class="gallery-caption"><span class="fig">Figure 14.</span> The loop test with the puzzle piece on the
+<p class="gallery-caption"><span class="fig">Figure 16.</span> The loop test with the puzzle piece on the
 sphere and the stone (<code>--max-level 3</code>): the region (warm white), springls, contour (cyan),
 the Lagrangian reference (ivory) and the flow (dark fuchsia arrows). Posters show t = T/4.</p>
 
@@ -1373,7 +1499,7 @@ full-speed schedule.</caption>
 ninth of the earlier 0.033, in a third of the sub-steps. The largest error (0.14 h<sub>t</sub>) is the same at
 sub-steps of ⅓, 1 and 2 h<sub>t</sub>, and the particles themselves come back within 0.002 h<sub>t</sub>, so it is
 the rebuild's, not the motion's. On the stone the Hodge flow, not rigid,
-shears the piece into a long thin sliver by mid-loop (<a href="#i-results">Figure 14</a>), with springls
+shears the piece into a long thin sliver by mid-loop (<a href="#i-results">Figure 16</a>), with springls
 added as it stretches (960 at the peak); the reverse half brings it back within 0.014% of its area and a
 mean shape error of a fiftieth of an edge length (1.6 h<sub>t</sub> at most), against +0.40% and 0.231
 before. The 0.48% along the way is the smoothed flow's own compression, which it undoes on the way back.
@@ -1383,7 +1509,38 @@ parallel code each run is about 8× faster than before. Coarsening keeps the mes
 the frame-export run on the sphere peaked at 0.43 GB (1.02 GB without coarsening, measured with the
 earlier schedule).</p>
 
-<h3 id="r-validation"><span class="num">4.8</span>Validation against the reference implementation<a class="anchor" href="#r-validation" aria-label="Link to this section"></a></h3>
+<h3 id="r-mesh-tracking"><span class="num">4.8</span>Mesh tracking<a class="anchor" href="#r-mesh-tracking" aria-label="Link to this section"></a></h3>
+
+<div class="gallery">
+  <figure class="clip featured">
+    <video src="videos/3d-mesh-tracking.mp4" poster="videos/3d-mesh-tracking.jpg" controls muted loop playsinline preload="none"></video>
+    <figcaption>Mesh Tracking 3D (semi-Lagrangian level set) <a href="videos/3d-mesh-tracking.mp4">mp4</a></figcaption>
+  </figure>
+</div>
+<p class="gallery-caption"><span class="fig">Figure 17.</span> The 3D Enright test with mesh tracking, T = 3: the tracked
+mesh, green with its wireframe (with <code>--set checkMesh=1</code>, triangles that fold over or overlap are drawn
+red). The poster shows t = T/2.</p>
+
+<p>Table 11 sets mesh tracking beside the springl methods of Table 5 and 6 on the same test and grid
+(<a href="#r-3d">§4.4</a>). Its elements are the mesh's triangles. Its time per step is on this machine with 8
+threads; the other rows are from §4.4.</p>
+
+<div class="table-wrap"><table>
+<caption><span class="fig">Table 11.</span> Mesh tracking against springls and DoubleWeave, 3D Enright test at t = T (shape errors in
+domain units).</caption>
+<thead><tr><th>method</th><th class="n">volume error</th><th class="n">mean shape error</th><th class="n">max shape error</th><th class="n">elements at T (peak)</th><th class="n">steps</th><th class="n">median step</th><th class="n">total run time</th></tr></thead>
+<tbody>
+<tr><td>Spring Level Set</td><td class="n">−15.40%</td><td class="n">0.01514</td><td class="n">0.1498</td><td class="n">6,588 (11,023) springls</td><td class="n">482</td><td class="n">398 ms</td><td class="n">206 s</td></tr>
+<tr><td>DoubleWeave</td><td class="n">−15.39%</td><td class="n">0.01542</td><td class="n">0.1471</td><td class="n">13,005 (21,731) springls</td><td class="n">483</td><td class="n">1.05 s</td><td class="n">531 s</td></tr>
+<tr><td>Adaptive Springls</td><td class="n">−2.52%</td><td class="n">0.00128</td><td class="n">0.0155</td><td class="n">21,241 (48,868) springls</td><td class="n">267</td><td class="n">2.17 s</td><td class="n">539 s</td></tr>
+<tr><td>Adaptive DoubleWeave</td><td class="n">−2.49%</td><td class="n">0.00143</td><td class="n">0.0349</td><td class="n">41,380 (98,389) springls</td><td class="n">267</td><td class="n">6.54 s</td><td class="n">1,727 s</td></tr>
+<tr><td>Semi-Lagrangian DoubleWeave</td><td class="n">−2.33%</td><td class="n">0.00117</td><td class="n">0.0053</td><td class="n">41,033 (97,259) springls</td><td class="n">267</td><td class="n">4.16 s</td><td class="n">1,017 s</td></tr>
+<tr class="best"><td>Mesh tracking (semi-Lagrangian)</td><td class="n">−0.31%</td><td class="n">0.00015</td><td class="n">0.0035</td><td class="n">≈30,300 (≈105,700) triangles</td><td class="n">355</td><td class="n">586 ms</td><td class="n">223 s</td></tr>
+</tbody></table></div>
+
+<p>Mesh tracking ends with the lowest errors here: −0.31% volume, an eighth of the semi-Lagrangian DoubleWeave's mean shape error (0.00015 against 0.00117) and two thirds of its max (0.0035 against 0.0053). It starts where the adaptive methods do, at −2.35% (the initial level set is the 32³ distance field interpolated onto the band); the first rebuild from the mesh replaces that with the distance to the icosphere itself. Its elements stay joined, so nothing is resampled: the mesh grows to about 105,700 triangles while the sphere is a thin curled disk and comes back to about 30,300 at T, from 20,480. Each step is one sub-step (355 in all; at most T/200, and at most a third of a base voxel of vertex motion, as springls), with a median step of 586 ms (p90 1.05 s, p99 1.14 s). The mesh never changes topology: from about t = 1.2 the thinnest parts of the sheet fold over and pass through each other, which the level set, rebuilt with capsules, shows as their union (with <code>--set checkMesh=1</code>, 466 fold-overs and 574 overlapping triangle pairs at T).</p>
+
+<h3 id="r-validation"><span class="num">4.9</span>Validation against the reference implementation<a class="anchor" href="#r-validation" aria-label="Link to this section"></a></h3>
 
 <p>The 2D code is a port of the springls in wedge, with Eigen in place of header-only-club. With
 matching inputs the level sets agree with wedge to float rounding, and Enright errors match its
@@ -1434,6 +1591,12 @@ triangulation, refined only near the springls, springls move by the exponential 
 set is rebuilt per vertex from geodesic distances and the springls' orientation, so a region goes
 around a sphere or a lumpy stone and comes back with the 2D step and tuning, at three times the 2D
 sub-step, in parallel on OpenMP threads (<a href="#intrinsic">§3.14</a>, <a href="#r-intrinsic">§4.7</a>).</p>
+
+<p><strong>Mesh tracking.</strong> One closed triangle mesh, kept well shaped by edge splits, collapses and
+Delaunay flips, run chart by chart in parallel, with its level set rebuilt from it by the semi-Lagrangian rule,
+returns the 3D Enright sphere within 0.3% volume and with the lowest shape errors here
+(<a href="#r-mesh-tracking">§4.8</a>). It never changes topology, so where the sheet folds onto itself the mesh
+overlaps itself (574 overlapping triangle pairs at t = T) while its level set shows the union.</p>
 
 <p><strong>Limitations.</strong> The semi-Lagrangian rule fuses fronts that come closer than two
 capsules (intended for colliding fronts, but it means topology cannot be preserved), and features
@@ -1518,6 +1681,10 @@ Intrinsic springls track one region, and their fast marching runs on one thread.
   Decomposition," <em>ACM Transactions on Graphics (SIGGRAPH)</em>, 22(3):445–452, 2003.</li>
   <li id="ref-32">U. Pinkall and K. Polthier, "Computing Discrete Minimal Surfaces and Their Conjugates,"
   <em>Experimental Mathematics</em>, 2(1):15–36, 1993. (The cotan Laplacian.)</li>
+  <li id="ref-33">Q. Du, V. Faber, and M. Gunzburger, "Centroidal Voronoi Tessellations: Applications and
+  Algorithms," <em>SIAM Review</em>, 41(4):637–676, 1999.</li>
+  <li id="ref-34">W. E. Lorensen and H. E. Cline, "Marching Cubes: A High Resolution 3D Surface Construction
+  Algorithm," <em>Computer Graphics (SIGGRAPH)</em>, 21(4):163–169, 1987.</li>
 </ol>
 </section>
 
@@ -1609,7 +1776,9 @@ have spent the same compute; <code>same-time</code> steps whichever is behind in
 ./build/demo/enright-3d-dweave --set fillDistance=0.4     <span class="c"># tuning overrides (--list-tuning)</span></code></pre>
 
 <p>The programs are <code>enright-3d-springls</code>, <code>enright-3d-adaptive-springls</code>, <code>enright-3d-dweave</code>,
-<code>enright-3d-adaptive-dweave</code>, <code>enright-3d-semi-lagrangian-dweave</code> and the basic level set
+<code>enright-3d-adaptive-dweave</code>, <code>enright-3d-semi-lagrangian-dweave</code>, <code>enright-3d-mesh-tracking</code>
+(mesh tracking, §3.15; tuning keys <code>sphereLevels</code>, <code>chartTriangles</code>, <code>chartFill</code>,
+<code>meshletCharts</code>, <code>capsuleCells</code>, <code>checkMesh</code>, <code>foldDegrees</code>) and the basic level set
 <code>enright-3d-levelset</code> and <code>enright-3d-adaptive-levelset</code>; <code>toybox --domain 3d -m</code> takes a
 list of these keys or <code>all</code> (the five springl methods). <code>--elements</code> is <code>quad</code> (default) or <code>triangle</code>. <code>--grid</code> defaults to 128³ for the uniform
 methods and a 32³ base grid for the adaptive ones, refined <code>--max-depth</code> times (default 3, i.e.
@@ -1699,6 +1868,9 @@ false. All sources are in <code>src</code>.</p>
 <tr><td><code>AdaptiveSpringLevelSet3D</code></td><td>adaptive springls and adaptive DoubleWeave</td></tr>
 <tr><td><code>SemiLagrangianDweaveLevelSet3D</code></td><td>adaptive DoubleWeave with the level set rebuilt from the springls each sub-step (no CFL limit)</td></tr>
 <tr><td><code>SpringlSignField3D</code></td><td>the same in 3D, on the finest leaves' node lattice with coarse leaves as nodes of the flood</td></tr>
+<tr><td><code>MeshTracking3D</code></td><td>mesh tracking: one closed triangle mesh advected by RK4 and remeshed, the level set rebuilt from it each sub-step (§3.15)</td></tr>
+<tr><td><code>AdaptiveRemesh3D</code>, <code>CvtCharts</code></td><td>edge splits, collapses and Delaunay flips by independent sets or chart by chart; the charts as meshlet-optimizer's base meshlets</td></tr>
+<tr><td><code>MeshCheck3D</code>, <code>TriangleSurface3D</code></td><td>fold-over and overlap check; the mesh with a region per triangle</td></tr>
 <tr><td><code>TriangleTree3D</code>, <code>PointGrid3D</code>, <code>SpringlHashGrid3D</code></td><td>closest-triangle BVH and point-triangle distance <sup class="ref"><a href="#ref-11">[11]</a></sup>, radius queries, multi-level springl index</td></tr>
 <tr><td><code>Manifold3D</code>, <code>Volume</code>, <code>Common3D</code></td><td>iso-surface + springl state, 3D grid, vector helpers</td></tr>
 <tr><td><code>EnrightTest3D</code></td><td>3D deformation test <sup class="ref"><a href="#ref-2">[2]</a></sup><sup class="ref"><a href="#ref-9">[9]</a></sup>: velocity, configuration, metrics, method factory</td></tr>

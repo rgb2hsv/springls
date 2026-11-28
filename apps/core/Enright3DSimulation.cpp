@@ -2,8 +2,10 @@
 
 #include "Experiment.hpp"
 
+#include <lod/MeshTracking3D.hpp>
 #include <springl/AdaptiveSpringLevelSet3D.hpp>
 
+#include <algorithm>
 #include <cstdio>
 #include <fstream>
 #include <iomanip>
@@ -120,7 +122,13 @@ void Enright3DSimulation::summary(std::ostream &out, double seconds) const
     out << "  " << std::setw(31) << std::left << MethodTitle(method()) << std::right << " grid " << std::setw(3) << mConfig.gridSize << " volume error "
         << std::setw(9) << 100.0 * m.relativeVolumeError << " %   mean shape " << m.meanShapeError << "   max shape " << m.maxShapeError << "   springls "
         << std::setw(7) << m.springlCount << "   steps " << mSim->getIteration() << "   sub-steps " << mSim->getAdvectionSubstepCount() << "   "
-        << std::setprecision(2) << seconds << " s" << std::setprecision(5) << '\n';
+        << std::setprecision(2) << seconds << " s" << std::setprecision(5);
+    if (const auto *tracking = dynamic_cast<const MeshTracking3D *>(mSim.get()); tracking && tracking->meshCheck()) {
+        const MeshCheck &check = *tracking->meshCheck();
+        out << "   fold-overs " << check.foldedEdges << " (most " << tracking->maxFoldedEdges() << ")   overlaps " << check.overlappingPairs << " (most "
+            << tracking->maxOverlappingPairs() << ")";
+    }
+    out << '\n';
 }
 
 void Enright3DSimulation::progress(std::ostream &out, bool withTime) const
@@ -147,6 +155,10 @@ RunSnapshot Enright3DSimulation::snapshot() const
         r.levelSet = std::make_shared<const VolumeF>(mSim->getLevelSet());
     }
     r.manifold = mSim->getManifold();
+    if (const auto *tracking = dynamic_cast<const MeshTracking3D *>(mSim.get())) {
+        r.trackedMesh = std::make_shared<const TriangleSurface>(tracking->mesh());
+        r.trackedCheck = tracking->meshCheck();
+    }
     r.metrics = mCurrent;
     r.iteration = mSim->getIteration();
     r.substeps = mSim->getAdvectionSubstepCount();

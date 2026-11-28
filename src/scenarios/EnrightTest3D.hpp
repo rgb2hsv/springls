@@ -60,11 +60,14 @@ enum class Method3D {
     AdaptiveSpringls,
     AdaptiveDweave,
     SemiLagrangianDweave,
+    MeshTracking,
     LevelSet,
     AdaptiveLevelSet
 };
 constexpr std::array<Method3D, 5> kAllMethods3D = {Method3D::Springls, Method3D::AdaptiveSpringls, Method3D::Dweave, Method3D::AdaptiveDweave,
                                                    Method3D::SemiLagrangianDweave};
+// Mesh tracking with adaptive remeshing: adaptive grid, no checkpoints.
+constexpr std::array<Method3D, 1> kMeshMethods3D = {Method3D::MeshTracking};
 // The basic level set method (no springls) on the uniform and the adaptive grid.
 constexpr std::array<Method3D, 2> kLevelSetMethods3D = {Method3D::LevelSet, Method3D::AdaptiveLevelSet};
 bool IsAdaptive(Method3D method);
@@ -72,7 +75,7 @@ bool IsAdaptive(Method3D method);
 // (refined up to 32 * 2^maxDepth, 256^3 equivalent at the default depth 3).
 int DefaultGridSize(Method3D method);
 // Command-line key ("springls", "DoubleWeave", "adaptive-springls", "adaptive-dweave",
-// "semi-lagrangian-dweave", "levelset", "adaptive-levelset").
+// "semi-lagrangian-dweave", "mesh-tracking", "levelset", "adaptive-levelset").
 const char *MethodKey(Method3D method);
 const char *MethodTitle(Method3D method);
 bool ParseMethod(const std::string &key, Method3D &method);

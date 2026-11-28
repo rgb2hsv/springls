@@ -66,55 +66,7 @@ void SemiLagrangianDweaveLevelSet3D::evolveGrid()
     params.distanceClamp = std::min(adaptiveTuning.bandWidth, kDistanceCells * (std::isfinite(finestCell) ? finestCell : 1.0f));
     SpringlSignField3D field;
     field.build(input, params);
-    std::optional<ProfileScope> phase(std::in_place, "rebuild: phi at nodes");
-
-    // phi = sign * min(U, clamp) on the finest leaves, where the surface lies: the distance is only
-    // needed a few cells out (contour interpolation and gradients near the surface), and the clamp
-    // keeps each closest-triangle query local. Coarser leaves never hold the surface; they are
-    // tiles of +-band with their region's sign, as in the CFL-limited grid.
-    const float band = adaptiveTuning.bandWidth;
-    const float finest = field.latticeSpacing();
-    const float clamp = params.distanceClamp;
-    const std::vector<int> &leaves = mGrid.leaves();
-    const int L = static_cast<int>(leaves.size());
-    std::vector<std::vector<float>> values(leaves.size());
-    std::vector<float> tileValue(leaves.size(), 0.0f);
-    {
-        const auto &blocks = mGrid.blocks();
-        SPRINGLS_OMP(omp parallel for schedule(dynamic, 4) if (L >= kParallelMinBlocks))
-        for (int n = 0; n < L; n++) {
-            const Block &block = blocks[leaves[n]];
-            const Vec3 center = block.origin + Vec3::Constant(0.5f * block.size());
-            const float halfDiagonal = 0.5f * std::sqrt(3.0f) * block.size();
-            if (block.h > 1.001f * finest || !field.anyWithin(center, halfDiagonal + clamp)) {
-                tileValue[n] = field.sign(center) * band;
-                continue;
-            }
-            std::vector<float> &v = values[n];
-            v.resize(AdaptiveGrid3D::kNodeCount);
-            for (int c = 0; c < AdaptiveGrid3D::kBlockNodes; c++) {
-                for (int b = 0; b < AdaptiveGrid3D::kBlockNodes; b++) {
-                    for (int a = 0; a < AdaptiveGrid3D::kBlockNodes; a++) v[Block::index(a, b, c)] = field.phi(block.nodePosition(a, b, c), clamp);
-                }
-            }
-        }
-    }
-    auto &blocks = mGrid.blocks();
-    for (int n = 0; n < L; n++) {
-        Block &block = blocks[leaves[n]];
-        const std::vector<float> &v = values[n];
-        if (v.empty()) {
-            block.makeTile(tileValue[n]);
-            continue;
-        }
-        const float first = v[0];
-        if (std::abs(first) == clamp && std::all_of(v.begin(), v.end(), [first](float x) { return x == first; })) {
-            block.makeTile(first > 0.0f ? band : -band);
-        } else {
-            block.phi = v;
-        }
-    }
-    phase.reset();
+    FillGridFromSignField(mGrid, field, adaptiveTuning.bandWidth, params.distanceClamp);
     mGrid.synchronize();
     mGrid.updateActive();
     extractGridSurface();
@@ -175,7 +127,8 @@ int SemiLagrangianDweaveLevelSet3D::eraseTinyComponents()
     const Vec3 dir = Vec3(1.0f, 0.00137f, 0.00291f).normalized();
     auto &blocks = mGrid.blocks();
     int erased = 0;
-    for (const auto &[key, c] : components) {
+    for (const auto &entry : components) {
+        const auto &c = entry.second;  // not a structured binding: the lambdas below capture it (OpenMP in Clang)
         if (std::abs(c.volume) >= static_cast<double>(slTuning.minComponentCells) * c.h * c.h * c.h) continue;
         const auto enclosed = [&](const Vec3 &p) {
             bool inside = false;

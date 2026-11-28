@@ -50,9 +50,11 @@ Configuration Config3D(Method3D m)
         case Method3D::Dweave:
         case Method3D::AdaptiveDweave:
         case Method3D::SemiLagrangianDweave: c.representation = Representation::Dweave; break;
+        case Method3D::MeshTracking: c.representation = Representation::TrackedMesh; break;
     }
     c.grid = springls::IsAdaptive(m) ? GridType::Adaptive : GridType::Uniform;
-    if (m == Method3D::SemiLagrangianDweave) c.tracking = InterfaceTracking::SemiLagrangian;
+    // Semi-Lagrangian: the level set is rebuilt from the springls (or the tracked mesh) each sub-step.
+    if (m == Method3D::SemiLagrangianDweave || m == Method3D::MeshTracking) c.tracking = InterfaceTracking::SemiLagrangian;
     return c;
 }
 
@@ -81,6 +83,7 @@ Registry::Registry()
     }
     std::vector<Method3D> methods3D(springls::kAllMethods3D.begin(), springls::kAllMethods3D.end());
     methods3D.insert(methods3D.end(), springls::kLevelSetMethods3D.begin(), springls::kLevelSetMethods3D.end());
+    methods3D.insert(methods3D.end(), springls::kMeshMethods3D.begin(), springls::kMeshMethods3D.end());
     for (Method3D m : methods3D) {
         Entry e;
         e.config = Config3D(m);
@@ -103,7 +106,6 @@ Registry::Registry()
     Entry stone = sphere;
     stone.config.scenario = Scenario::Stone;
     mEntries.push_back(stone);
-
     // The factories refer to their entry, so they are set once the list is complete.
     for (Entry &e : mEntries) {
         const Entry *entry = &e;

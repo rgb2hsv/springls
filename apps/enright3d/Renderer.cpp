@@ -21,7 +21,11 @@
 
 #include <Eigen/Geometry>
 
+#include <algorithm>
 #include <array>
+#include <cmath>
+#include <map>
+#include <utility>
 #include <cstdio>
 #include <iomanip>
 #include <sstream>
@@ -56,6 +60,15 @@ constexpr float kOvershootSlopeVoxels = 1.92f;
 constexpr float kParticleDrawRadius = 2.0f * SpringLevelSet3D::kParticleRadius;
 constexpr float kMinParticlePixels = 3.0f;
 constexpr float kMaxArcStep = kPi / 8.0f;
+// Wireframes sit this far in front of their surface (they lie on it); widths in device pixels.
+constexpr float kLineBiasVoxels = 0.05f;
+const Vec3 kWireColor(0.5f, 0.5f, 0.5f);
+const Vec3 kIsoWireColor(0.2f, 0.2f, 0.22f);  // the iso-surface's wireframe, over its matcap shading
+const Vec3 kBadColor(0.9f, 0.1f, 0.1f);       // tracked mesh triangles that fold over or overlap
+const Vec3 kTrackedTint(0.36f, 0.72f, 0.42f);  // the tracked mesh's surface (matcap tinted green)
+const Vec3 kTrackedWireColor(0.66f, 0.68f, 0.70f);  // its wireframe, lighter than the iso-surface's
+constexpr float kWirePixels = 1.0f;
+
 
 // Colors from the toybox palette (common/Palette.hpp), shared by every window: springls (tints of the
 // matcap) and particles as in the 2D window, primal then dual; every capsule's overshoot (the region outside
@@ -73,8 +86,8 @@ const nvg::Color kTextColor = Paint(toybox::palette::kText);
 const nvg::Color kStatusColor = Paint(toybox::palette::kStatus);
 const nvg::Color kTextShadow = Paint(toybox::palette::kTextShadow);
 
-int Columns(size_t count) { return (count > 1) ? 2 : 1; }
-int Rows(size_t count) { return static_cast<int>((count + Columns(count) - 1) / Columns(count)); }
+int Columns(size_t count, int columns = 0) { return (columns > 0) ? columns : ((count > 1) ? 2 : 1); }
+int Rows(size_t count, int columns = 0) { return static_cast<int>((count + Columns(count, columns) - 1) / Columns(count, columns)); }
 
 // ---------------------------------------------------------------------------------------------
 // Shaders
@@ -165,6 +178,44 @@ void main() {
 }
 )";
 
+// Lines of any width (core-profile OpenGL draws only 1-pixel lines): the geometry shader turns each segment
+// into a screen-space quad uWidth device pixels wide, extended by half that at both ends so joints close.
+const char *kLineVertex = R"(#version 330 core
+layout(location = 0) in vec3 aPosition;
+uniform mat4 uMvp;
+void main() { gl_Position = uMvp * vec4(aPosition, 1.0); }
+)";
+const char *kLineGeometry = R"(#version 330 core
+layout(lines) in;
+layout(triangle_strip, max_vertices = 4) out;
+uniform vec2 uViewport;  // device pixels
+uniform float uWidth;    // device pixels
+void main() {
+    vec4 a = gl_in[0].gl_Position, b = gl_in[1].gl_Position;
+    vec2 pa = a.xy / a.w * 0.5 * uViewport, pb = b.xy / b.w * 0.5 * uViewport;
+    vec2 d = pb - pa;
+    float len = length(d);
+    vec2 t = len > 0.0 ? d / len : vec2(1.0, 0.0);
+    vec2 n = vec2(-t.y, t.x);
+    vec2 toNdc = 2.0 / uViewport;
+    vec2 side = n * 0.5 * uWidth * toNdc, along = t * 0.5 * uWidth * toNdc;
+    gl_Position = vec4((a.xy / a.w - along + side) * a.w, a.z, a.w); EmitVertex();
+    gl_Position = vec4((a.xy / a.w - along - side) * a.w, a.z, a.w); EmitVertex();
+    gl_Position = vec4((b.xy / b.w + along + side) * b.w, b.z, b.w); EmitVertex();
+    gl_Position = vec4((b.xy / b.w + along - side) * b.w, b.z, b.w); EmitVertex();
+    EndPrimitive();
+}
+)";
+const char *kLineFragment = R"(
+uniform vec3 uTint;
+uniform float uDepthBias;
+out vec4 fragColor;
+void main() {
+    gl_FragDepth = gl_FragCoord.z + uDepthBias;
+    fragColor = vec4(uTint, 1.0);
+}
+)";
+
 GLuint CompileShader(GLenum type, const std::string &source, std::string &error)
 {
     const GLuint shader = glCreateShader(type);
@@ -185,7 +236,7 @@ GLuint CompileShader(GLenum type, const std::string &source, std::string &error)
 
 struct Program {
     GLuint id = 0;
-    bool build(const std::string &vertex, const std::string &fragment, std::string &error)
+    bool build(const std::string &vertex, const std::string &fragment, std::string &error, const std::string &geometry = {})
     {
         const GLuint vs = CompileShader(GL_VERTEX_SHADER, vertex, error);
         if (!vs) return false;
@@ -194,12 +245,20 @@ struct Program {
             glDeleteShader(vs);
             return false;
         }
+        GLuint gs = 0;
+        if (!geometry.empty() && !(gs = CompileShader(GL_GEOMETRY_SHADER, geometry, error))) {
+            glDeleteShader(vs);
+            glDeleteShader(fs);
+            return false;
+        }
         id = glCreateProgram();
         glAttachShader(id, vs);
         glAttachShader(id, fs);
+        if (gs) glAttachShader(id, gs);
         glLinkProgram(id);
         glDeleteShader(vs);
         glDeleteShader(fs);
+        if (gs) glDeleteShader(gs);
         GLint ok = 0;
         glGetProgramiv(id, GL_LINK_STATUS, &ok);
         if (!ok) {
@@ -318,12 +377,17 @@ struct RunGeometry {
     uint64_t generation = 0, iteration = 0;
     float springlScale = -1.0f, capsuleRadius = -1.0f;
     bool capsules = false, valid = false;
-    GpuMesh iso;
+    GpuMesh iso, isoWire, tracked, trackedWire, trackedBad, trackedBadWire;
     std::array<GpuMesh, kConstellationCount> springls, capsuleMeshes, particles;
 
     void release()
     {
         iso.release();
+        isoWire.release();
+        tracked.release();
+        trackedWire.release();
+        trackedBad.release();
+        trackedBadWire.release();
         for (size_t w = 0; w < kConstellationCount; w++) {
             springls[w].release();
             capsuleMeshes[w].release();
@@ -346,9 +410,9 @@ struct RunGeometry {
         capsuleRadius = visibility.capsuleRadius;
         valid = true;
 
-        // Iso-surface (quads split in two), smooth shaded.
+        // Iso-surface (quads split in two), smooth shaded, and its edges for the wireframe.
         const SurfaceMesh3D &surface = m.isoSurface;
-        Vertexes buffer;
+        Vertexes buffer, edges;
         const int FK = surface.elementSize();
         buffer.reserve(surface.faceCount() * 3 * (FK - 2));
         for (size_t f = 0; f < surface.faceCount(); f++) {
@@ -356,8 +420,53 @@ struct RunGeometry {
             for (int t = 1; t + 1 < FK; t++) {
                 for (uint32_t i : {idx[0], idx[t], idx[t + 1]}) Push(buffer, surface.vertexes[i], surface.normals[i]);
             }
+            for (int k = 0; k < FK; k++) {
+                Push(edges, surface.vertexes[idx[k]], Vec3::UnitZ());
+                Push(edges, surface.vertexes[idx[(k + 1) % FK]], Vec3::UnitZ());
+            }
         }
         iso.upload(buffer);
+        isoWire.upload(edges);
+        buffer.clear();
+        edges.clear();
+        if (run.trackedMesh) {
+            // The tracked mesh (smooth shaded: area-weighted vertex normals) and its edges.
+            const springls::TriangleSurface &mesh = *run.trackedMesh;
+            Points3 normals(mesh.vertexes.size(), Vec3::Zero());
+            for (const auto &t : mesh.triangles) {
+                const Vec3 n = (mesh.vertexes[t[1]] - mesh.vertexes[t[0]]).cross(mesh.vertexes[t[2]] - mesh.vertexes[t[0]]);
+                for (uint32_t v : t) normals[v] += n;
+            }
+            for (Vec3 &n : normals) n = (n.squaredNorm() > 0.0f) ? Vec3(n.normalized()) : Vec3::UnitZ();
+            for (const auto &t : mesh.triangles) {
+                for (uint32_t i : t) Push(buffer, mesh.vertexes[i], normals[i]);
+                for (int k = 0; k < 3; k++) {
+                    Push(edges, mesh.vertexes[t[k]], Vec3::UnitZ());
+                    Push(edges, mesh.vertexes[t[(k + 1) % 3]], Vec3::UnitZ());
+                }
+            }
+        }
+        tracked.upload(buffer);
+        trackedWire.upload(edges);
+        buffer.clear();
+        edges.clear();
+        if (run.trackedMesh && run.trackedCheck && run.trackedCheck->flags.size() == run.trackedMesh->triangles.size()) {
+            // Triangles the check flagged, drawn again over the mesh in red with heavy outlines.
+            const springls::TriangleSurface &mesh = *run.trackedMesh;
+            for (size_t f = 0; f < mesh.triangles.size(); f++) {
+                if (!run.trackedCheck->flags[f]) continue;
+                const auto &t = mesh.triangles[f];
+                const Vec3 n = (mesh.vertexes[t[1]] - mesh.vertexes[t[0]]).cross(mesh.vertexes[t[2]] - mesh.vertexes[t[0]]);
+                const Vec3 normal = n.squaredNorm() > 0.0f ? Vec3(n.normalized()) : Vec3::UnitZ();
+                for (uint32_t i : t) Push(buffer, mesh.vertexes[i], normal);
+                for (int k = 0; k < 3; k++) {
+                    Push(edges, mesh.vertexes[t[k]], Vec3::UnitZ());
+                    Push(edges, mesh.vertexes[t[(k + 1) % 3]], Vec3::UnitZ());
+                }
+            }
+        }
+        trackedBad.upload(buffer);
+        trackedBadWire.upload(edges);
 
         // Springls (polygons of any size, fanned from the particle since dual cells need not be
         // convex), capsules and particles per constellation.
@@ -409,8 +518,16 @@ std::vector<std::pair<std::string, nvg::Color>> HeaderLines(const ExperimentSnap
     s << "advection sub-steps " << run.substeps << std::fixed << std::setprecision(5) << "   mean dt "
       << (run.substeps > 0 ? mt.time / static_cast<double>(run.substeps) : 0.0) << std::setprecision(1) << "   compute " << run.seconds << " s";
     push(kTextColor);
-    s << "springls " << mt.springlCount;
-    if (hasConstellations) s << "  (primal " << mt.constellationSpringlCounts[0] << ", dual " << mt.constellationSpringlCounts[1] << ")";
+    if (run.trackedMesh) {
+        s << "tracked mesh: " << run.trackedMesh->triangles.size() << " triangles";
+        if (run.trackedCheck) {
+            s << ", " << run.trackedCheck->foldedEdges << " fold-overs, " << run.trackedCheck->overlappingPairs << " overlaps";
+            if (run.trackedCheck->nonManifoldEdges) s << ", " << run.trackedCheck->nonManifoldEdges << " non-manifold edges";
+        }
+    } else {
+        s << "springls " << mt.springlCount;
+        if (hasConstellations) s << "  (primal " << mt.constellationSpringlCounts[0] << ", dual " << mt.constellationSpringlCounts[1] << ")";
+    }
     push(kTextColor);
     if (run.maxDepth > 0) {
         s << "grid " << config.gridSize << "^3 to " << (config.gridSize << run.finestDepth) << "^3 equivalent (depths 0-" << run.finestDepth << " of "
@@ -418,7 +535,11 @@ std::vector<std::pair<std::string, nvg::Color>> HeaderLines(const ExperimentSnap
     } else {
         s << "grid " << config.gridSize << "^3, ";
     }
-    s << ElementTypeKey(m.elementType) << " springls, " << m.isoSurface.faceCount() << " faces";
+    if (run.trackedMesh) {
+        s << m.isoSurface.faceCount() << " iso-surface faces";
+    } else {
+        s << ElementTypeKey(m.elementType) << " springls, " << m.isoSurface.faceCount() << " faces";
+    }
     push(kTextColor);
     return lines;
 }
@@ -448,7 +569,8 @@ void OrbitCamera::rotate(float dx, float dy)
 struct Renderer::Impl {
     std::unique_ptr<nvg::Context> vg;
     int font = -1;
-    Program surface, particle;
+    Program surface, particle, line;
+    float devicePixelRatio = 1.0f;
     std::vector<RunGeometry> geometry;
 
     ~Impl()
@@ -456,6 +578,7 @@ struct Renderer::Impl {
         for (RunGeometry &g : geometry) g.release();
         surface.release();
         particle.release();
+        line.release();
         if (vg) nvg::deleteGL(vg);
     }
 
@@ -484,18 +607,31 @@ struct Renderer::Impl {
         g.update(experiment, run, visibility);
         const bool capsules = visibility.capsules;
         const std::array<bool, kConstellationCount> show = {visibility.primal, visibility.dual};
+        // An iso-surface with nothing else to show gets its wireframe drawn over it. Mesh tracking always shows one
+        // surface, the tracked mesh or the iso-surface (in the iso-surface buffers), with its wireframe.
+        const bool trackedRun = run.trackedMesh != nullptr;
+        const bool showTracked = trackedRun && visibility.trackedSurface;
+        const bool drawIso = trackedRun ? !showTracked : visibility.isoSurface;
+        const bool isoOnly = trackedRun ? !showTracked : (visibility.isoSurface && !show[0] && !show[1] && !visibility.particles);
 
         glUseProgram(surface.id);
         glUniformMatrix4fv(surface.at("uMvp"), 1, GL_FALSE, mvp.data());
         glUniformMatrix3fv(surface.at("uNormalMatrix"), 1, GL_FALSE, rotation.data());
         glUniform2f(surface.at("uOvershoot"), kOvershootDepthVoxels * depthPerVoxel, kOvershootSlopeVoxels * depthPerVoxel);
-        if (visibility.isoSurface) {
+        if (drawIso) {
             const float tolerance = capsules ? kCapsuleSurfaceToleranceVoxels : kLayerEpsilonVoxels;
             SetVec3(surface.at("uTint"), kIsoTint);
             glUniform1i(surface.at("uShaded"), 1);
             glUniform1f(surface.at("uDepthBias"), (tolerance + kLayerEpsilonVoxels) * depthPerVoxel);
             glUniform1i(surface.at("uCapsules"), 0);
             g.iso.draw(GL_TRIANGLES);
+        }
+        if (showTracked) {
+            SetVec3(surface.at("uTint"), kTrackedTint);
+            glUniform1i(surface.at("uShaded"), 1);
+            glUniform1f(surface.at("uDepthBias"), 0.0f);
+            glUniform1i(surface.at("uCapsules"), 0);
+            g.tracked.draw(GL_TRIANGLES);
         }
         // Dual, then primal on top of it (the dual layer sits kLayerEpsilonVoxels behind). Springls
         // and capsules are matcap shaded too, the matcap tinted so their color shows through.
@@ -508,6 +644,48 @@ struct Renderer::Impl {
             SetVec3(surface.at("uTint"), kSpringlColors[w]);
             glUniform1f(surface.at("uDepthBias"), (w == static_cast<size_t>(Constellation::Dual) ? kLayerEpsilonVoxels : 0.0f) * depthPerVoxel);
             (capsules ? g.capsuleMeshes[w] : g.springls[w]).draw(GL_TRIANGLES);
+        }
+        if (isoOnly) {
+            GLint viewport[4] = {0, 0, 1, 1};
+            glGetIntegerv(GL_VIEWPORT, viewport);
+            glUseProgram(line.id);
+            glUniformMatrix4fv(line.at("uMvp"), 1, GL_FALSE, mvp.data());
+            glUniform2f(line.at("uViewport"), static_cast<float>(viewport[2]), static_cast<float>(viewport[3]));
+            glUniform1f(line.at("uWidth"), kWirePixels * devicePixelRatio);
+            glUniform1f(line.at("uDepthBias"), -kLineBiasVoxels * depthPerVoxel);
+            SetVec3(line.at("uTint"), kIsoWireColor);
+            g.isoWire.draw(GL_LINES);
+            glUseProgram(surface.id);
+        }
+        if (showTracked) {
+            GLint viewport[4] = {0, 0, 1, 1};
+            glGetIntegerv(GL_VIEWPORT, viewport);
+            glUseProgram(line.id);
+            glUniformMatrix4fv(line.at("uMvp"), 1, GL_FALSE, mvp.data());
+            glUniform2f(line.at("uViewport"), static_cast<float>(viewport[2]), static_cast<float>(viewport[3]));
+            glUniform1f(line.at("uWidth"), kWirePixels * devicePixelRatio);
+            glUniform1f(line.at("uDepthBias"), -kLineBiasVoxels * depthPerVoxel);
+            SetVec3(line.at("uTint"), kTrackedWireColor);
+            g.trackedWire.draw(GL_LINES);
+            glUseProgram(surface.id);
+        }
+        if (trackedRun && visibility.trackedSurface) {
+            // Fold-overs and overlaps (when checked): red, in front of the mesh and its wireframe, outlined.
+            SetVec3(surface.at("uTint"), kBadColor);
+            glUniform1i(surface.at("uShaded"), 1);
+            glUniform1i(surface.at("uCapsules"), 0);
+            glUniform1f(surface.at("uDepthBias"), -kLineBiasVoxels * depthPerVoxel);
+            g.trackedBad.draw(GL_TRIANGLES);
+            GLint viewport[4] = {0, 0, 1, 1};
+            glGetIntegerv(GL_VIEWPORT, viewport);
+            glUseProgram(line.id);
+            glUniformMatrix4fv(line.at("uMvp"), 1, GL_FALSE, mvp.data());
+            glUniform2f(line.at("uViewport"), static_cast<float>(viewport[2]), static_cast<float>(viewport[3]));
+            glUniform1f(line.at("uWidth"), 3.0f * kWirePixels * devicePixelRatio);
+            glUniform1f(line.at("uDepthBias"), -2.0f * kLineBiasVoxels * depthPerVoxel);
+            SetVec3(line.at("uTint"), kBadColor);
+            g.trackedBadWire.draw(GL_LINES);
+            glUseProgram(surface.id);
         }
         if (visibility.particles) {
             glUseProgram(particle.id);
@@ -532,7 +710,8 @@ bool Renderer::init(const std::string &fontFile, std::string &error)
     mImpl = std::make_unique<Impl>();
     const std::string header = "#version 330 core\n";
     if (!mImpl->surface.build(kSurfaceVertex, header + kMatcapGlsl + kSurfaceFragment, error) ||
-        !mImpl->particle.build(kParticleVertex, header + kMatcapGlsl + kParticleFragment, error)) {
+        !mImpl->particle.build(kParticleVertex, header + kMatcapGlsl + kParticleFragment, error) ||
+        !mImpl->line.build(kLineVertex, header + kLineFragment, error, kLineGeometry)) {
         return false;
     }
     mImpl->vg = nvg::createGL(static_cast<int>(nvg::CreateFlags::Antialias | nvg::CreateFlags::StencilStrokes));
@@ -550,11 +729,18 @@ bool Renderer::init(const std::string &fontFile, std::string &error)
 
 void Renderer::shutdown() { mImpl.reset(); }
 
-std::vector<Rect> Renderer::Layout(size_t count, const Rect &bounds)
+std::vector<Renderer::PanelView> Renderer::Views(const ExperimentSnapshot &experiment, const Visibility &visibility)
+{
+    std::vector<PanelView> views;
+    for (size_t i = 0; i < experiment.runs.size(); i++) views.push_back({i});
+    return views;
+}
+
+std::vector<Rect> Renderer::Layout(size_t count, const Rect &bounds, int requestedColumns)
 {
     std::vector<Rect> panels(count);
     if (count == 0) return panels;
-    const int columns = Columns(count), rows = Rows(count);
+    const int columns = Columns(count, requestedColumns), rows = Rows(count, requestedColumns);
     const float size =
         std::max(0.0f, std::min((bounds.w - (columns + 1) * kPanelMargin) / columns, (bounds.h - rows * kHeaderHeight - (rows + 1) * kPanelMargin) / rows));
     // Center the block of panels horizontally.
@@ -568,9 +754,9 @@ std::vector<Rect> Renderer::Layout(size_t count, const Rect &bounds)
     return panels;
 }
 
-void Renderer::ImageSize(size_t count, float panelSize, int &width, int &height)
+void Renderer::ImageSize(size_t count, float panelSize, int &width, int &height, int requestedColumns)
 {
-    const int columns = Columns(count), rows = Rows(count);
+    const int columns = Columns(count, requestedColumns), rows = Rows(count, requestedColumns);
     width = static_cast<int>(std::ceil(columns * panelSize + (columns + 1) * kPanelMargin));
     height = static_cast<int>(std::ceil(rows * (panelSize + kHeaderHeight) + (rows + 1) * kPanelMargin));
     width += width & 1;
@@ -581,11 +767,13 @@ void Renderer::draw(const ExperimentSnapshot &experiment, const Visibility &visi
                     float viewHeight, float devicePixelRatio, const std::string &status)
 {
     Impl &impl = *mImpl;
+    impl.devicePixelRatio = devicePixelRatio;
     const std::vector<RunSnapshot> &runs = experiment.runs;
-    const std::vector<Rect> panels = Layout(runs.size(), bounds);
-    if (impl.geometry.size() != runs.size()) {
+    const std::vector<PanelView> views = Views(experiment, visibility);
+    const std::vector<Rect> panels = Layout(views.size(), bounds);
+    if (impl.geometry.size() != views.size()) {
         for (RunGeometry &g : impl.geometry) g.release();
-        impl.geometry.assign(runs.size(), RunGeometry());
+        impl.geometry.assign(views.size(), RunGeometry());
     }
     const float r = devicePixelRatio;
     const float fbHeight = viewHeight * r;
@@ -607,14 +795,14 @@ void Renderer::draw(const ExperimentSnapshot &experiment, const Visibility &visi
     glEnable(GL_PROGRAM_POINT_SIZE);
     glDepthMask(GL_TRUE);
     glDepthFunc(GL_LEQUAL);
-    for (size_t i = 0; i < runs.size(); i++) {
+    for (size_t i = 0; i < views.size(); i++) {
         if (panels[i].w <= 0.0f) continue;
         setRect(panels[i]);
         glClearColor(kPanelColor.x(), kPanelColor.y(), kPanelColor.z(), 1.0f);
         glClearDepth(1.0);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glEnable(GL_DEPTH_TEST);
-        impl.drawPanel(experiment, runs[i], impl.geometry[i], visibility, camera, panels[i].w * r);
+        impl.drawPanel(experiment, runs[views[i].run], impl.geometry[i], visibility, camera, panels[i].w * r);
         glDisable(GL_DEPTH_TEST);
     }
     glDisable(GL_SCISSOR_TEST);
@@ -629,7 +817,7 @@ void Renderer::draw(const ExperimentSnapshot &experiment, const Visibility &visi
     float headerScale = 1.0f;
     vg.fontSize(kTextFontSize);
     for (size_t i = 0; i < panels.size(); i++) {
-        for (const auto &line : HeaderLines(experiment, runs[i], status)) {
+        for (const auto &line : HeaderLines(experiment, runs[views[i].run], status)) {
             const float width = vg.textBounds(0.0f, 0.0f, line.first.c_str(), nullptr, nullptr);
             if (width > panels[i].w && width > 0.0f) headerScale = std::min(headerScale, panels[i].w / width);
         }
@@ -637,10 +825,11 @@ void Renderer::draw(const ExperimentSnapshot &experiment, const Visibility &visi
     for (size_t i = 0; i < panels.size(); i++) {
         float x = panels[i].x, y = panels[i].y - kHeaderHeight;
         vg.fontSize(kTitleFontSize * headerScale);
-        Shadowed(vg, x, y, MethodTitle(runs[i].method), kTextColor);
+        const std::string title = MethodTitle(runs[views[i].run].method);
+        Shadowed(vg, x, y, title, kTextColor);
         y += (kTextLineHeight + kTitleFontSize - kTextFontSize) * headerScale;
         vg.fontSize(kTextFontSize * headerScale);
-        for (const auto &[text, color] : HeaderLines(experiment, runs[i], status)) {
+        for (const auto &[text, color] : HeaderLines(experiment, runs[views[i].run], status)) {
             Shadowed(vg, x, y, text, color);
             y += kTextLineHeight * headerScale;
         }

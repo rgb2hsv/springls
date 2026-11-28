@@ -116,7 +116,7 @@ std::unique_ptr<argparse::ArgumentParser> MakeParser(const Demo &demo, bool with
     p.add_argument("-e", "--elements", "--element").help("springl element type: quad|triangle");
     // 3D Enright
     p.add_argument("--hide").help(
-        "comma-separated layers to hide initially: 3D Enright: iso,primal,dual,particles; sphere: "
+        "comma-separated layers to hide initially: 3D Enright: iso,primal,dual,particles,tracked (shows the iso-surface instead); sphere: "
         "regions,isolines,springls,particles,vertices,normals,contour,arrows,reference,wireframe");
     p.add_argument("--particles").default_value(false).implicit_value(true).help("show springl particles (hidden by default)");
     p.add_argument("--capsules")
@@ -361,6 +361,8 @@ bool Select(const Args &args, Invocation &out, std::string &error)
                     // all = the springl methods (not the basic level set ones); 2D: all = the four CFL-limited
                     // single-object springl methods, multi = the six multi-object methods.
                     if (key == "all" && e.config.representation == Representation::LevelSet && e.config.objects == Objects::Single) continue;
+                    // Mesh tracking only by name (-m mesh-tracking) or representation.
+                    if (e.config.representation == Representation::TrackedMesh) continue;
                     if (out.domain == Domain::D2 && out.scenario == Scenario::Enright) {
                         const bool multi = e.config.objects == Objects::Multiple;
                         if (key == "all" && (multi || e.config.tracking != InterfaceTracking::Eulerian)) continue;
@@ -390,6 +392,18 @@ bool Select(const Args &args, Invocation &out, std::string &error)
         if (gridType && !ParseAxis("grid-type", *gridType, kGridTypes, grids, error)) return false;
         if (objects && !ParseAxis("objects", *objects, kObjects, objs, error)) return false;
         if (tracking && !ParseAxis("interface-tracking", *tracking, kInterfaceTrackings, tracks, error)) return false;
+        // Given representations with no Eulerian entry (mesh tracking is semi-Lagrangian only) take the trackings
+        // they are implemented with when none is given.
+        if (representation && !tracking) {
+            std::vector<InterfaceTracking> implemented;
+            bool eulerian = false;
+            for (const Entry &e : registry.entries()) {
+                if (e.config.domain != out.domain || e.config.scenario != out.scenario || !Contains(reps, e.config.representation)) continue;
+                eulerian |= e.config.tracking == InterfaceTracking::Eulerian;
+                if (!Contains(implemented, e.config.tracking)) implemented.push_back(e.config.tracking);
+            }
+            if (!eulerian && !implemented.empty()) tracks = implemented;
+        }
         // Axes not given take the values implemented for the given ones (all values when there are none).
         auto matchesGiven = [&](const Configuration &c) {
             return c.domain == out.domain && c.scenario == out.scenario && (!representation || Contains(reps, c.representation)) &&
@@ -398,6 +412,8 @@ bool Select(const Args &args, Invocation &out, std::string &error)
         if (!representation) {
             for (Representation r : kRepresentations) {
                 for (const Entry &e : registry.entries()) {
+                    // Mesh tracking joins only when its representation is given.
+                    if (r == Representation::TrackedMesh) continue;
                     if (matchesGiven(e.config) && e.config.representation == r && !Contains(reps, r)) reps.push_back(r);
                 }
             }
@@ -448,7 +464,8 @@ bool Select(const Args &args, Invocation &out, std::string &error)
             if (anyGiven && !covered) out.notes.push_back("not implemented, skipped: " + Describe(c));
         }
         for (const Entry *e : out.entries) out.methodLabel += (out.methodLabel.empty() ? "" : ",") + e->key;
-        out.slComparison = Contains(tracks, InterfaceTracking::SemiLagrangian);
+        // Only an explicitly requested semi-Lagrangian run is the semi-Lagrangian comparison.
+        out.slComparison = tracking && Contains(tracks, InterfaceTracking::SemiLagrangian);
     }
     out.slOnly = true;
     for (const Entry *e : out.entries) {
@@ -481,7 +498,7 @@ bool ParseHiddenLayers(const std::string &hide, std::vector<std::string> &layers
 {
     layers.clear();
     for (const std::string &layer : SplitList(hide)) {
-        if (layer != "iso" && layer != "primal" && layer != "dual" && layer != "particles") {
+        if (layer != "iso" && layer != "primal" && layer != "dual" && layer != "particles" && layer != "tracked") {
             error = "error: --hide: unknown layer '" + layer + "'";
             return false;
         }
@@ -539,7 +556,15 @@ bool ParseInvocation(const Demo &demo, int argc, const char *const argv[], Invoc
         }
     }
 
-    const Profile profile = DefaultProfile(out.domain, out.scenario, out.semiLagrangian);
+    Profile profile = DefaultProfile(out.domain, out.scenario, out.semiLagrangian);
+    // Mesh tracking alone: the octree from 32^3 to 256^3 (depth 3), steps of at most T/200 (each limited further by
+    // the vertex motion per sub-step, maxStepVoxels; the level set is rebuilt, so there is no CFL limit).
+    if (!out.entries.empty() &&
+        std::all_of(out.entries.begin(), out.entries.end(), [](const Entry *e) { return e->config.representation == Representation::TrackedMesh; })) {
+        profile.maxDepth = 3;
+        profile.gridSize = 32;
+        profile.maxTimeStepFraction = 1.0 / 200.0;
+    }
     RunOptions &run = out.run;
     for (const std::string &entry : args.list<std::string>("--set")) {
         const size_t eq = entry.find('=');

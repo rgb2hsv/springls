@@ -2,17 +2,19 @@
 
 #include <dweave/DweaveLevelSet3D.hpp>
 #include <dweave/SemiLagrangianDweaveLevelSet3D.hpp>
+#include <lod/MeshTracking3D.hpp>
 #include <levelset/LevelSetMethod3D.hpp>
 #include <springl/AdaptiveSpringLevelSet3D.hpp>
 
 #include <functional>
 #include <map>
+#include <numbers>
 
 namespace springls
 {
 namespace
 {
-constexpr double kPiD = 3.14159265358979323846;
+constexpr double kPiD = std::numbers::pi;
 }
 
 VolumeF MakeEnrightInitialLevelSet(const EnrightConfig3D &config)
@@ -56,6 +58,7 @@ VolumeV3 MakeEnrightVelocityField(const EnrightConfig3D &config)
 void ConfigureEnright(SpringLevelSet3D &sim, const EnrightConfig3D &config)
 {
     sim.setInitialLevelSet(MakeEnrightInitialLevelSet(config));
+    if (auto *tracking = dynamic_cast<MeshTracking3D *>(&sim)) tracking->setInitialSphere(config.centerVoxels(), config.radiusVoxels());
     sim.setCurvatureWeight(0.0f);
     sim.setVelocityFunction([config](const Vec3 &p) { return EnrightVelocity(config, p); }, 1.0f);
     sim.temporalScheme = SpringLevelSet3D::TemporalScheme::RK4;
@@ -112,7 +115,7 @@ EnrightMetrics3D MeasureEnright(const SpringLevelSet3D &sim, const EnrightConfig
 bool IsAdaptive(Method3D method)
 {
     return method == Method3D::AdaptiveSpringls || method == Method3D::AdaptiveDweave || method == Method3D::SemiLagrangianDweave ||
-           method == Method3D::AdaptiveLevelSet;
+           method == Method3D::MeshTracking || method == Method3D::AdaptiveLevelSet;
 }
 int DefaultGridSize(Method3D method) { return IsAdaptive(method) ? 32 : 128; }
 
@@ -124,6 +127,7 @@ const char *MethodKey(Method3D method)
         case Method3D::AdaptiveSpringls: return "adaptive-springls";
         case Method3D::AdaptiveDweave: return "adaptive-dweave";
         case Method3D::SemiLagrangianDweave: return "semi-lagrangian-dweave";
+        case Method3D::MeshTracking: return "mesh-tracking";
         case Method3D::LevelSet: return "levelset";
         case Method3D::AdaptiveLevelSet: return "adaptive-levelset";
     }
@@ -138,6 +142,7 @@ const char *MethodTitle(Method3D method)
         case Method3D::AdaptiveSpringls: return "Adaptive Springls 3D";
         case Method3D::AdaptiveDweave: return "Adaptive DoubleWeave 3D";
         case Method3D::SemiLagrangianDweave: return "Semi-Lagrangian DoubleWeave 3D";
+        case Method3D::MeshTracking: return "Mesh Tracking 3D";
         case Method3D::LevelSet: return "Level Set 3D";
         case Method3D::AdaptiveLevelSet: return "Adaptive Level Set 3D";
     }
@@ -153,6 +158,12 @@ bool ParseMethod(const std::string &key, Method3D &method)
         }
     }
     for (Method3D m : kLevelSetMethods3D) {
+        if (key == MethodKey(m)) {
+            method = m;
+            return true;
+        }
+    }
+    for (Method3D m : kMeshMethods3D) {
         if (key == MethodKey(m)) {
             method = m;
             return true;
@@ -192,6 +203,11 @@ std::unique_ptr<SpringLevelSet3D> MakeSimulation(Method3D method, ElementType el
         }
         case Method3D::SemiLagrangianDweave: {
             auto sim = std::make_unique<SemiLagrangianDweaveLevelSet3D>(elementType);
+            sim->adaptiveTuning.maxDepth = maxDepth;
+            return sim;
+        }
+        case Method3D::MeshTracking: {
+            auto sim = std::make_unique<MeshTracking3D>(elementType);
             sim->adaptiveTuning.maxDepth = maxDepth;
             return sim;
         }
@@ -262,6 +278,24 @@ const std::map<std::string, Setter> &TuningSetters()
         {"maxStrain", semiLagrangian(&SL::maxStrain)},
         {"maxStepCells", semiLagrangian(&SL::maxStepCells)},
         {"minComponentCells", semiLagrangian(&SL::minComponentCells)},
+        {"sphereLevels", Setter([](SpringLevelSet3D &s, double v) {
+             if (auto *m = dynamic_cast<MeshTracking3D *>(&s)) m->meshTuning.sphereLevels = static_cast<int>(v);
+         })},
+        {"checkMesh", Setter([](SpringLevelSet3D &s, double v) {
+             if (auto *m = dynamic_cast<MeshTracking3D *>(&s)) m->meshTuning.checkMesh = v != 0.0;
+         })},
+        {"foldDegrees", Setter([](SpringLevelSet3D &s, double v) {
+             if (auto *m = dynamic_cast<MeshTracking3D *>(&s)) m->meshTuning.foldDegrees = static_cast<float>(v);
+         })},
+        {"chartFill", Setter([](SpringLevelSet3D &s, double v) {
+             if (auto *m = dynamic_cast<MeshTracking3D *>(&s)) m->meshTuning.chartFill = v;
+         })},
+        {"meshletCharts", Setter([](SpringLevelSet3D &s, double v) {
+             if (auto *m = dynamic_cast<MeshTracking3D *>(&s)) m->meshTuning.meshletCharts = v != 0.0;
+         })},
+        {"chartTriangles", Setter([](SpringLevelSet3D &s, double v) {
+             if (auto *m = dynamic_cast<MeshTracking3D *>(&s)) m->meshTuning.chartTriangles = static_cast<int>(v);
+         })},
     };
     return setters;
 }

@@ -9,6 +9,7 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <numbers>
 #include <vector>
 
 using namespace springls;
@@ -36,7 +37,7 @@ void AddCube(PolygonMesh &mesh, const Vec3 &offset)
     }
 }
 
-const float kTestPi = 3.14159265358979f;
+const float kTestPi = std::numbers::pi_v<float>;
 
 // Returns the id of the vertex at p, appending it when absent (exact match).
 uint32_t VertexAt(PolygonMesh &mesh, const Vec3 &p)
@@ -90,7 +91,7 @@ double WindingNumber(const Points3 &positions, const std::vector<std::array<uint
         const double denominator = la * lb * lc + a.dot(b) * lc + b.dot(c) * la + c.dot(a) * lb;
         total += 2.0 * std::atan2(numerator, denominator);
     }
-    return total / (4.0 * 3.14159265358979323846);
+    return total / (4.0 * std::numbers::pi);
 }
 
 void CheckCubeDistances(const MeshDistance3D &distance)

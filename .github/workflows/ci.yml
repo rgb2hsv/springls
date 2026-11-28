@@ -18,46 +18,59 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: MSVC (Windows)
-            os: windows-latest
-            generator: Visual Studio 17 2022
-            cmake-args: -A x64
-          - name: GCC (Linux)
+          # Visual Studio generator (CMake's default on Windows): CMakeLists.txt adds /MP so each target's
+          # sources compile in parallel.
+          - name: MSVC
+            os: windows-2025
+            cc: cl
+            cxx: cl
+          - name: GCC
             os: ubuntu-24.04
             generator: Ninja
             cc: gcc-14
             cxx: g++-14
-          - name: Clang (Linux)
+          - name: Clang
             os: ubuntu-24.04
             generator: Ninja
             cc: clang-18
             cxx: clang++-18
-
     steps:
       - uses: actions/checkout@v4
 
-      # Only the submodules the build uses; nanovg's SDL / glslang / glew are not needed.
-      - name: Fetch submodules
+      # Not --recursive: nanovg's own submodules include SDL, glslang and an SSH-only glew, none of which are used.
+      - name: Submodules
         shell: bash
         run: |
           git submodule update --init --depth 1 --jobs 8
+          git submodule update --init --recursive --depth 1 --jobs 8 external/meshlet-optimizer
           git -C external/nanovg submodule update --init --depth 1 external/glfw external/Vulkan-Headers
 
-      - name: Install Linux dependencies
+      - name: Linux packages
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y ninja-build libomp-18-dev libgl-dev libglfw3-dev \
-            libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev
+          sudo apt-get install -y ninja-build libglfw3-dev libgl-dev libomp-18-dev
 
       - name: Configure
         shell: bash
+        env:
+          CC: ${{ matrix.cc }}
+          CXX: ${{ matrix.cxx }}
         run: |
-          if [ -n "${{ matrix.cxx }}" ]; then export CC=${{ matrix.cc }} CXX=${{ matrix.cxx }}; fi
-          cmake -S . -B build-ci -G "${{ matrix.generator }}" ${{ matrix.cmake-args }} -DCMAKE_BUILD_TYPE=Release
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            cmake -S . -B build -A x64   # the newest Visual Studio on the runner
+          else
+            cmake -S . -B build -G "${{ matrix.generator }}" -DCMAKE_BUILD_TYPE=Release
+          fi
 
       - name: Build
-        run: cmake --build build-ci --config Release --parallel 4
+        shell: bash
+        run: |
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            cmake --build build --config Release --parallel 4
+          else
+            cmake --build build --parallel 4 -- -k 0   # report every error, not just the first
+          fi
 
       - name: Test
-        run: ctest --test-dir build-ci -C Release --output-on-failure
+        run: ctest --test-dir build -C Release --output-on-failure
